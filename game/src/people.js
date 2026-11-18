@@ -59,13 +59,14 @@ export function makePersonMesh(shirtColor, skinColor = 0xd9a986, opts = {}) {
   const hairColor = opts.hairColor ?? 0x1a1a1a;
   const hairStyle = opts.uniform ? 'hat' : (opts.hairStyle ?? 'cap');
   const shirt = opts.uniform ? 0x1a2a55 : shirtColor;
+  const female = !!opts.female;
   const group = new THREE.Group();
 
   // Legs: pivoted at the hips so they swing while walking.
   const parts = {};
   for (const s of [-1, 1]) {
     const leg = new THREE.Group();
-    leg.position.set(s * 0.11, 0.85, 0);
+    leg.position.set(s * (female ? 0.10 : 0.11), 0.85, 0);
     const thigh = mesh(boxGeo(0.16, 0.85, 0.18), pants, 0, -0.42, 0);
     leg.add(thigh);
     // Shoe.
@@ -74,10 +75,17 @@ export function makePersonMesh(shirtColor, skinColor = 0xd9a986, opts = {}) {
     parts[s < 0 ? 'legL' : 'legR'] = leg;
   }
 
-  // Torso.
-  const torso = mesh(boxGeo(0.52, 0.62, 0.28), shirt, 0, 1.18, 0);
+  // Torso (narrower shoulders on women).
+  const torso = mesh(boxGeo(female ? 0.44 : 0.52, 0.62, 0.28), shirt, 0, 1.18, 0);
   group.add(torso);
   parts.torso = torso;
+  // Dress: a flared skirt over the hips (women only).
+  if (opts.dress) {
+    const skirt = new THREE.Mesh(cylGeo(0.26, 0.46, 0.62, 8), mat(opts.dress));
+    skirt.position.set(0, 0.62, 0);
+    skirt.castShadow = true;
+    group.add(skirt);
+  }
   // Jacket: an open layer over the lower torso, shirt showing on the chest.
   if (opts.jacket) {
     group.add(mesh(boxGeo(0.56, 0.42, 0.32), opts.jacket, 0, 1.08, 0));
@@ -90,7 +98,7 @@ export function makePersonMesh(shirtColor, skinColor = 0xd9a986, opts = {}) {
   // Arms: pivoted at the shoulders, with a skin hand at the end.
   for (const s of [-1, 1]) {
     const arm = new THREE.Group();
-    arm.position.set(s * 0.32, 1.44, 0);
+    arm.position.set(s * (female ? 0.27 : 0.32), 1.44, 0);
     arm.add(mesh(boxGeo(0.13, 0.56, 0.15), opts.uniform ? 0x1a2a55 : shirt, 0, -0.28, 0));
     arm.add(mesh(boxGeo(0.12, 0.12, 0.12), skin, 0, -0.62, 0));
     group.add(arm);
@@ -115,6 +123,10 @@ export function makePersonMesh(shirtColor, skinColor = 0xd9a986, opts = {}) {
   } else if (hairStyle === 'long') {
     head.add(mesh(boxGeo(0.36, 0.1, 0.36), hairColor, 0, 0.17, 0));
     head.add(mesh(boxGeo(0.34, 0.42, 0.1), hairColor, 0, -0.08, -0.16));
+  } else if (hairStyle === 'ponytail') {
+    head.add(mesh(boxGeo(0.34, 0.08, 0.34), hairColor, 0, 0.18, 0));
+    // Tail hanging down the back of the head.
+    head.add(mesh(boxGeo(0.12, 0.44, 0.1), hairColor, 0, -0.06, -0.18));
   } else if (hairStyle === 'mohawk') {
     head.add(mesh(boxGeo(0.05, 0.14, 0.3), hairColor, 0, 0.22, 0));
   } else if (hairStyle === 'hat') {
@@ -148,21 +160,42 @@ export function animateWalk(parts, phase, amount) {
   parts.armR.rotation.z = -0.08 * amount;
 }
 
+const FEMALE_SHIRTS = [0xe86a8a, 0xd84a7a, 0x2a9a8a, 0xe8c020, 0x8a5aa8, 0xf0f0f0, 0xe86a10];
+const DRESS_COLORS = [0xd84a7a, 0x2a6ac2, 0xe8c020, 0x8a3a5a, 0x2a9a8a, 0xc22a2a];
+
+/** A random citizen: women (long hair / ponytail, dresses, slimmer build) and men. */
 function randomPerson(rng) {
+  const female = rng() < 0.5;
+  if (female) {
+    return {
+      shirt: pick(rng, FEMALE_SHIRTS),
+      skin: pick(rng, SKIN_TONES),
+      hairColor: pick(rng, HAIR_COLORS),
+      hairStyle: pick(rng, ['long', 'ponytail', 'long', 'ponytail', 'flat']),
+      pants: pick(rng, PANTS_COLORS),
+      jacket: null,
+      dress: rng() < 0.45 ? pick(rng, DRESS_COLORS) : null,
+      female: true,
+      scale: rand(rng, 0.88, 0.98),
+    };
+  }
   return {
     shirt: pick(rng, SHIRT_COLORS),
     skin: pick(rng, SKIN_TONES),
     hairColor: pick(rng, HAIR_COLORS),
-    hairStyle: pick(rng, HAIR_STYLES),
+    hairStyle: pick(rng, ['cap', 'flat', 'mohawk', 'bald', 'flat']),
     pants: pick(rng, PANTS_COLORS),
     jacket: pick(rng, JACKET_COLORS),
-    scale: rand(rng, 0.92, 1.08),
+    female: false,
+    scale: rand(rng, 0.94, 1.08),
   };
 }
 
 class Walker {
   constructor(x, z, look) {
     this.group = makePersonMesh(look.shirt, look.skin, look);
+    this.look = look;
+    this.sex = look.female ? 'female' : 'male';
     this.parts = this.group.userData.parts;
     this.group.userData.person = this;
     this.group.position.set(x, 0, z);
@@ -248,14 +281,15 @@ class Walker {
   }
 }
 
-/** The crowd. */
+/** The crowd: 38 walkers (women and men) plus 3 officers on patrol. */
 export class Pedestrians {
-  constructor(count = 22) {
+  constructor(count = 38) {
     this.rng = mulberry32(31337);
     this.walkers = [];
     for (let i = 0; i < count; i++) {
       const line = pick(this.rng, CITY.LINES);
-      const along = rand(this.rng, -200, 200);
+      // Bias toward the busy center, plaza and beachfront so the city feels lived-in.
+      const along = this.rng() < 0.6 ? rand(this.rng, -140, 140) : rand(this.rng, -200, 200);
       const off = this.rng() > 0.5 ? 9.5 : -9.5;
       const x = this.rng() > 0.5 ? along : line + off;
       const z = this.rng() > 0.5 ? line + off : along;

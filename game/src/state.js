@@ -28,6 +28,8 @@ export const S = {
   // subsystems (set by main.js)
   player: null,
   traffic: null,
+  trafficLights: null,
+  lampCount: 0,
   police: null,
   missions: null,
   hud: null,

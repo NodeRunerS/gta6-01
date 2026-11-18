@@ -379,7 +379,16 @@ export class Traffic {
         const d = Math.hypot(p.x - car.pos.x, p.z - car.pos.z);
         if (d < 12) target = Math.min(target, 4);
       }
-      car.speed += (target - car.speed) * Math.min(1, dt * 1.5);
+      // Stop at a red (or yellow) traffic light ahead; commit if already at the line.
+      let braking = false;
+      if (S.trafficLights) {
+        const light = S.trafficLights.stateForApproach(car.pos.x, car.pos.z, car.trafficAxis, car.trafficDir);
+        if (light && (light.state === 'red' || light.state === 'yellow') && light.distToStop > 3 && light.distToStop < 18) {
+          target = Math.min(target, Math.max(0, (light.distToStop - 3) * 0.9));
+          braking = target < car.speed;
+        }
+      }
+      car.speed += (target - car.speed) * Math.min(1, dt * (braking ? 6 : 1.5));
       const step = car.speed * dt * car.trafficDir;
       if (car.trafficAxis === 'x') car.pos.x += step;
       else car.pos.z += step;

@@ -4,6 +4,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { S } from './state.js';
 import { buildCity } from './city.js';
+import { buildTrafficLights } from './traffic-lights.js';
 import { Traffic, spawnParkedCars } from './vehicles.js';
 import { Pedestrians } from './people.js';
 import { Police } from './police.js';
@@ -72,9 +73,11 @@ function init() {
   S.hud = new HUD();
   city = buildCity();
   S.colliders = city.colliders;
+  S.lampCount = city.lampCount;
+  S.trafficLights = buildTrafficLights();
   S.traffic = new Traffic(14);
   spawnParkedCars();
-  new Pedestrians(22);
+  new Pedestrians(38);
   S.police = new Police();
   new Player(-28, -60);
   S.missions = new Missions();
@@ -191,6 +194,11 @@ function init() {
       speed: S.player ? +S.player.speed.toFixed(1) : 0,
       police: S.police ? S.police.units.length : 0,
       enemies: S.enemies.length,
+      trafficLights: S.trafficLights ? S.trafficLights.summary() : [],
+      lampCount: S.lampCount || 0,
+      pedestrians: S.pedestrians.length,
+      pedWomen: S.pedestrians.filter((w) => w.sex === 'female').length,
+      pedMen: S.pedestrians.filter((w) => w.sex === 'male').length,
       time: +S.time.toFixed(1),
       buildingCount: city.buildingCount,
     }),
@@ -284,6 +292,7 @@ function loop(t) {
     S.time += dt;
     S.gameMinutes += dt * 0.5;
     S.player.update(dt);
+    S.trafficLights.update(dt);
     S.traffic.update(dt);
     for (const w of S.pedestrians) w.update(dt);
     for (const e of [...S.enemies]) e.update(dt);
@@ -298,6 +307,7 @@ function loop(t) {
     const a = S.time * 0.05;
     S.camera.position.set(Math.cos(a) * 190, 90, Math.sin(a) * 190);
     S.camera.lookAt(0, 10, 0);
+    S.trafficLights.update(dt);
     city.update(dt);
   }
   if (S.mode !== 'menu') updateCamera(dt);

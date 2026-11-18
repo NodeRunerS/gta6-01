@@ -458,6 +458,73 @@ export function buildCity() {
     scene.add(bench);
   }
 
+  // --- street lamps: avenues, central avenue and the beachfront boulevard --
+  // Poles + glowing heads + light pools are three InstancedMeshes (3 draw
+  // calls for ~79 lamps); three warm PointLights anchor the glow at the
+  // plaza, downtown and the beachfront. The game is set at dusk, so the
+  // lamps read clearly against the dark roads.
+  const lampSpots = [];
+  for (const lx of [-112, 0, 112]) {
+    for (const z of [-196, -140, -84, -28, 28, 84, 140, 196]) {
+      lampSpots.push({ x: lx - 8.5, z });
+      lampSpots.push({ x: lx + 8.5, z });
+    }
+  }
+  for (const x of [-196, -140, -84, -28, 28, 84, 140, 196]) {
+    lampSpots.push({ x, z: -8.5 });
+    lampSpots.push({ x, z: 8.5 });
+  }
+  for (let x = -196; x <= 196; x += 28) lampSpots.push({ x, z: 232.5 });
+  const lampCount = lampSpots.length;
+  const lampPoleGeo = new THREE.CylinderGeometry(0.12, 0.18, 5.2, 6);
+  const lampPoleMat = new THREE.MeshLambertMaterial({ color: 0x2e2e34 });
+  const lampPoles = new THREE.InstancedMesh(lampPoleGeo, lampPoleMat, lampCount);
+  lampPoles.name = 'lampPoles';
+  const lampHeadGeo = new THREE.SphereGeometry(0.5, 10, 8);
+  const lampHeadMat = new THREE.MeshLambertMaterial({ color: 0xffe9a8, emissive: 0xffc860, emissiveIntensity: 1.4 });
+  const lampHeads = new THREE.InstancedMesh(lampHeadGeo, lampHeadMat, lampCount);
+  lampHeads.name = 'lampHeads';
+  // Warm radial pool of light on the ground (one shared canvas texture).
+  const poolCanvas = document.createElement('canvas');
+  poolCanvas.width = 128;
+  poolCanvas.height = 128;
+  const px = poolCanvas.getContext('2d');
+  const grad = px.createRadialGradient(64, 64, 4, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255, 190, 90, 0.85)');
+  grad.addColorStop(0.55, 'rgba(255, 170, 60, 0.28)');
+  grad.addColorStop(1, 'rgba(255, 160, 50, 0)');
+  px.fillStyle = grad;
+  px.fillRect(0, 0, 128, 128);
+  const poolTex = new THREE.CanvasTexture(poolCanvas);
+  const lampPoolGeo = new THREE.CircleGeometry(5.5, 20);
+  const lampPoolMat = new THREE.MeshBasicMaterial({
+    map: poolTex, transparent: true, opacity: 0.5,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const lampPools = new THREE.InstancedMesh(lampPoolGeo, lampPoolMat, lampCount);
+  lampPools.name = 'lampPools';
+  const poolRot = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+  lampSpots.forEach((p, i) => {
+    m4.identity();
+    m4.setPosition(p.x, 2.6, p.z);
+    lampPoles.setMatrixAt(i, m4);
+    m4.identity();
+    m4.setPosition(p.x, 5.35, p.z);
+    lampHeads.setMatrixAt(i, m4);
+    m4.copy(poolRot);
+    m4.setPosition(p.x, 0.2, p.z);
+    lampPools.setMatrixAt(i, m4);
+  });
+  lampPoles.castShadow = false;
+  scene.add(lampPoles);
+  scene.add(lampHeads);
+  scene.add(lampPools);
+  for (const [lx, lz] of [[CITY.PLAZA.x, CITY.PLAZA.z], [0, 0], [0, 232]]) {
+    const glow = new THREE.PointLight(0xffc070, 50, 38, 2);
+    glow.position.set(lx, 7, lz);
+    scene.add(glow);
+  }
+
   // --- park: grass, trees, pond, paths --------------------------------------
   const park = new THREE.Mesh(
     new THREE.BoxGeometry(46, 0.3, 46),
@@ -567,6 +634,7 @@ export function buildCity() {
   return {
     colliders,
     buildingCount,
+    lampCount,
     update(dt) {
       for (const c of clouds) {
         c.position.x += dt * 1.6;
