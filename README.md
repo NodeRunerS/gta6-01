@@ -1,10 +1,10 @@
-# Solmar City: Streets of Gold — Vice City Nights · 1986
+# Solmar City: Streets of Gold · 1986
 
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![rank](https://make.fun/badge/gta6-01/NodeRunerS/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/NodeRunerS/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-An original open-world crime game in the spirit of 1986 Miami Vice, built with
+An original open-world crime game in the spirit of 1986 Miami, built with
 three.js / WebGL for desktop Chrome. Two islands split by a turquoise bay,
 three neon bridges, a mansion island, art-deco Ocean Beach, a glass downtown,
 an industrial port, a military base and a Cuban/Haitian district — all at
@@ -43,8 +43,8 @@ node serve.ts        # then open http://localhost:8080
   safehouse ($5,000) and three income-generating businesses: Neon Nights
   nightclub, Solmar Docks and the Print Works.
 - **Audio** — fully procedural WebAudio: engine, gunshots, sirens and a
-  two-station synthwave radio (VICE FM, WAVE 98) with a 16th-note sequencer.
-- **HUD** — Vice-style italic display type, digital clock, pink/cyan money
+  two-station synthwave radio (SOLMAR FM, WAVE 98) with a 16th-note sequencer.
+- **HUD** — Retro italic display type, digital clock, pink/cyan money
   counter, health/armor bars, weapon readout, 6-star wanted indicator and a
   circular radar minimap. Start, pause, WASTED and BUSTED screens, plus a
   localStorage save.

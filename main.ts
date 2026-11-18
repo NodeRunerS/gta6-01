@@ -1,4 +1,4 @@
-// Solmar City: Streets of Gold — Vice City Nights (gta6-01 entry, Node 22,
+// Solmar City: Streets of Gold · 1986 (gta6-01 entry, Node 22,
 // standard library only). The game is this directory's game/ folder — plain
 // static files a desktop browser loads offline (game/index.html and its ES
 // modules, three.js vendored under game/vendor/, no network requests) — and
