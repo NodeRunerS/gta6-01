@@ -42,11 +42,11 @@ export const MISSIONS = [
     ],
   },
   {
-    name: 'Vice King', giver: 'The Broker', reward: 3000,
+    name: 'Gold King', giver: 'The Broker', reward: 3000,
     start: { x: -140, z: -56 },
     steps: [
       { kind: 'kill', pos: { x: -140, z: -28 }, count: 5, text: 'Clear the tower plaza (5)' },
-      { kind: 'kill', pos: { x: -140, z: -28 }, count: 1, boss: true, text: 'Take down the Vice King' },
+      { kind: 'kill', pos: { x: -140, z: -28 }, count: 1, boss: true, text: 'Take down the Gold King' },
       { kind: 'goto', pos: { x: -140, z: -56 }, text: 'Report back to the Broker' },
     ],
   },
@@ -150,7 +150,7 @@ function completeMission() {
   }
   S.saveGame && S.saveGame();
   if (S.missionIndex < MISSIONS.length) showStartMarker();
-  else S.objectiveText = 'All story missions complete — Vice City is yours!';
+  else S.objectiveText = 'All story missions complete — Solmar City is yours!';
 }
 
 function spawnEnemies(pos, count, boss) {

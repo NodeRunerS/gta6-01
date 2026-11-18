@@ -1,4 +1,4 @@
-// Vice-style HUD: top-right clock / money / health / armor / weapon / stars,
+// Retro-style HUD: top-right clock / money / health / armor / weapon / stars,
 // bottom-left circular radar minimap, objective line, toasts and prompts.
 import { S } from './state.js';
 import { fmtMoney, fmtClock, clamp } from './util.js';

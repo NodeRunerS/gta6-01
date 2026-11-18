@@ -9,7 +9,7 @@ import { makeVehicle, driveVehicle } from './vehicles.js';
 import { addWanted, clearPolice } from './police.js';
 import { nearestInteraction, doInteraction, hitEnemies } from './missions.js';
 
-const SAVE_KEY = 'solmar-vice-save';
+const SAVE_KEY = 'solmar-save';
 
 function hawaiianShirtMaterial() {
   const c = document.createElement('canvas');

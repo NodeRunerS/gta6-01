@@ -1,4 +1,4 @@
-// City builder for Solmar City: Vice City Nights.
+// City builder for Solmar City: Streets of Gold.
 // Two islands, a turquoise bay, three bridges, a mansion island, Ocean Beach,
 // downtown, port, military base, mall and a Cuban/Haitian district — all
 // procedural, dusk-lit, with neon, palms and street lamps.
@@ -156,7 +156,7 @@ export function buildCity(scene) {
     [-168, 28, 28, 28, 40], [-112, 28, 24, 24, 30],
   ];
   towerSpots.forEach(([x, z, w, d, h], i) => building(x, z, w, d, h, glassTex[i % 3]));
-  neonSign(scene, 'VICE BANK', '#00e5ff', -168, 46, -124, Math.PI, 20);
+  neonSign(scene, 'SOLMAR BANK', '#00e5ff', -168, 46, -124, Math.PI, 20);
   neonSign(scene, 'SOLMAR TOWER', '#ff2e88', -112, 36, -69, Math.PI, 22);
 
   // West mid-rise brick blocks (x -196..-84, z -168..-56).
@@ -276,7 +276,7 @@ export function buildCity(scene) {
 
   // East art-deco beachfront hotels along Ocean Drive (x 196).
   const hotelNames = [
-    ['HOTEL DELUXE', '#ff2e88'], ['NEON PALMS', '#00e5ff'], ['VICE ROYALE', '#ff9e00'],
+    ['HOTEL DELUXE', '#ff2e88'], ['NEON PALMS', '#00e5ff'], ['SOLMAR ROYALE', '#ff9e00'],
     ['COLONY', '#b26bff'], ['TROPICANA', '#ff5e8a'], ['OCEAN DRIVE', '#00e5ff'],
   ];
   const hotelZ = [-140, -84, -28, 28, 84, 140];

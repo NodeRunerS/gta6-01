@@ -1,4 +1,4 @@
-// Shared helpers for Solmar City: Vice City Nights — seeded random, small
+// Shared helpers for Solmar City: Streets of Gold — seeded random, small
 // math, money and clock formatting used by every other module.
 export function mulberry32(seed) {
   let a = seed >>> 0;

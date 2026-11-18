@@ -5,7 +5,7 @@ import { S } from './state.js';
 
 const STATIONS = [
   {
-    name: 'VICE FM',
+    name: 'SOLMAR FM',
     track: 'Midnight Drive — Neon Palms',
     bpm: 96,
     root: 45, // A2

@@ -1,5 +1,5 @@
 // World layout and the one shared mutable state object for Solmar City:
-// Vice City Nights. Two islands split by a turquoise bay, three bridges,
+// Streets of Gold. Two islands split by a turquoise bay, three bridges,
 // a mansion island on a causeway, and an Ocean Beach strip on the east.
 import { clamp } from './util.js';
 

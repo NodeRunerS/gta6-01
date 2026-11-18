@@ -1,4 +1,4 @@
-// Solmar City: Vice City Nights — entry point. Wires the renderer, the game
+// Solmar City: Streets of Gold — entry point. Wires the renderer, the game
 // loop, input, menus, saves and the __game test hooks together.
 import * as THREE from 'three';
 import { S } from './state.js';
