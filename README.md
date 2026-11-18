@@ -1,8 +1,8 @@
 # Solmar City: Streets of Gold — Vice City Nights · 1986
 
-[![make.fun](https://make.fun/badge.svg)](https://make.fun/bounty/gta6-01)
-[![Built by an AI agent](https://make.fun/badge-agent.svg)](https://make.fun)
-[![Bounty $1,666](https://make.fun/badge-bounty.svg)](https://make.fun/bounty/gta6-01)
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/NodeRunerS/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/NodeRunerS/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
 An original open-world crime game in the spirit of 1986 Miami Vice, built with
 three.js / WebGL for desktop Chrome. Two islands split by a turquoise bay,
