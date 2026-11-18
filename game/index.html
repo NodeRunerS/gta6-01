@@ -3,141 +3,124 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23ffd23d'/%3E%3C/svg%3E">
-<title>Solmar City: Streets of Gold</title>
+<link rel="icon" href="data:,">
+<title>Solmar City: Streets of Gold — Vice City Nights 1986</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1210; font-family: 'Segoe UI', system-ui, sans-serif; }
-  #game-canvas, #game-canvas canvas { width: 100%; height: 100%; display: block; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a0b26; font-family: Impact, "Arial Black", sans-serif; }
+  #game { position: fixed; inset: 0; }
+  #game canvas { display: block; }
+  .hidden { display: none !important; }
+  .vice-font { font-family: Impact, "Arial Black", sans-serif; font-style: italic; letter-spacing: 1px; }
+
+  /* ---------- Start / pause screens ---------- */
+  .screen { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; justify-content: center; padding: 6vh 6vw; background: linear-gradient(100deg, rgba(20,4,32,0.82) 0%, rgba(20,4,32,0.45) 45%, rgba(20,4,32,0.05) 75%); color: #fff; }
+  .screen.hidden { display: none; }
+  .screen .kicker { color: #00e5ff; font-size: clamp(15px, 2vw, 24px); letter-spacing: 6px; text-shadow: 0 0 12px #00e5ff; }
+  .screen h1 { font-size: clamp(56px, 9vw, 128px); line-height: 0.95; color: #fff; text-shadow: 3px 3px 0 #000, -2px -2px 0 #000, 0 0 34px #ff2e88; }
+  .screen h1 .pink { color: #ff5e8a; }
+  .screen h1 .cyan { color: #00e5ff; }
+  .screen .sub { font-size: clamp(18px, 2.6vw, 32px); color: #ffc93d; text-shadow: 2px 2px 0 #000, 0 0 18px #ff9e00; margin-top: 4px; }
+  .menu { margin-top: 4vh; display: flex; flex-direction: column; gap: 4px; max-width: 460px; }
+  .menu button { text-align: left; background: transparent; border: none; color: #fff; font-family: Impact, "Arial Black", sans-serif; font-style: italic; font-size: clamp(20px, 2.6vw, 32px); letter-spacing: 2px; padding: 8px 16px; cursor: pointer; text-shadow: 2px 2px 0 #000; }
+  .menu button:hover, .menu button:focus { background: linear-gradient(90deg, #ffc93d, #ff9e00); color: #1a0b26; text-shadow: none; outline: none; }
+  .menu button.small { font-size: clamp(15px, 1.8vw, 22px); color: #c8c8d8; }
+  .controls { margin-top: 3vh; color: #e8e8f2; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.7; text-shadow: 1px 1px 0 #000; max-width: 520px; }
+  .controls b { color: #ffc93d; }
 
   /* ---------- HUD ---------- */
-  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; color: #fff; }
-  #hud.hidden { display: none; }
-  .panel { background: rgba(12, 10, 16, 0.62); border: 1px solid rgba(255, 210, 61, 0.35); border-radius: 10px; backdrop-filter: blur(3px); }
+  #hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; color: #fff; }
+  #hud-top-right { position: absolute; top: 12px; right: 14px; text-align: right; text-shadow: 2px 2px 0 #000; }
+  #clock { font-size: 30px; color: #fff; }
+  #money { font-size: 34px; color: #7dffce; }
+  #money.rich { color: #ff5e8a; }
+  .bars { margin-top: 2px; width: 210px; margin-left: auto; }
+  .bar { height: 11px; background: rgba(0,0,0,0.55); border: 1px solid #000; margin-top: 3px; }
+  .bar > div { height: 100%; }
+  #health-fill { background: linear-gradient(90deg, #35d07f, #7dffce); width: 100%; }
+  #armor-fill { background: linear-gradient(90deg, #2ea8ff, #9ad7f0); width: 0%; }
+  #weapon { font-size: 20px; margin-top: 4px; color: #ffe9a8; }
+  #stars { font-size: 26px; letter-spacing: 2px; color: #555; margin-top: 2px; }
+  #stars.hot { color: #ffd23d; text-shadow: 0 0 12px #ff2222, 2px 2px 0 #000; }
+  #objective { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: 46vw; text-align: center; font-size: 19px; color: #ffc93d; text-shadow: 2px 2px 0 #000, 0 0 14px #ff9e00; }
+  #minimap-wrap { position: absolute; left: 14px; bottom: 14px; width: 180px; height: 180px; border-radius: 50%; overflow: hidden; border: 3px solid rgba(255,255,255,0.85); box-shadow: 0 0 0 3px rgba(0,0,0,0.6), 0 0 22px rgba(0,0,0,0.7); background: #1e7fa8; }
+  #minimap { width: 100%; height: 100%; display: block; }
+  #speed { position: absolute; right: 16px; bottom: 16px; font-size: 30px; color: #fff; text-shadow: 2px 2px 0 #000; }
+  #radio { position: absolute; right: 16px; bottom: 56px; font-size: 17px; color: #00e5ff; text-shadow: 2px 2px 0 #000; }
+  #prompt { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); font-size: 19px; color: #fff; background: rgba(0,0,0,0.55); padding: 8px 16px; border-radius: 4px; text-shadow: 1px 1px 0 #000; }
+  #toast { position: absolute; left: 50%; bottom: 26%; transform: translateX(-50%); font-size: 24px; color: #ffc93d; text-shadow: 2px 2px 0 #000, 0 0 16px #ff9e00; opacity: 0; transition: opacity 0.25s; text-align: center; }
+  #toast.show { opacity: 1; }
+  #damage-flash { position: fixed; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,0,0,0.45) 100%); opacity: 0; pointer-events: none; z-index: 15; }
+  #damage-flash.show { opacity: 1; }
 
-  #top-left { position: absolute; top: 14px; left: 14px; display: flex; gap: 10px; align-items: flex-start; }
-  #minimap { width: 180px; height: 180px; border-radius: 50%; border: 3px solid #0a0a0a; outline: 2px solid rgba(255,255,255,0.4); background: rgba(8, 12, 8, 0.85); box-shadow: 0 0 18px rgba(0,0,0,0.6); }
-  #stats { display: flex; flex-direction: column; gap: 6px; min-width: 170px; }
-  #money { font-size: 26px; font-weight: 800; color: #46d160; padding: 6px 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
-  #stars { font-size: 22px; letter-spacing: 3px; color: #888; padding: 4px 12px; }
-  #stars.hot { color: #ffd23d; text-shadow: 0 0 10px rgba(255, 210, 61, 0.8); }
-  #health-wrap { padding: 6px 12px; }
-  #health-text { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
-  #health-bar { height: 10px; background: rgba(255,255,255,0.18); border-radius: 5px; overflow: hidden; }
-  #health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #2fae4e, #46d160); border-radius: 5px; transition: width 0.2s; }
-  #ammo { font-size: 15px; font-weight: 700; padding: 5px 12px; }
-  #clock { font-size: 15px; font-weight: 700; padding: 5px 12px; color: #ffffff; }
-
-  #top-right { position: absolute; top: 14px; right: 14px; text-align: right; }
-  #mission-label { font-size: 14px; font-weight: 800; color: #ffd23d; padding: 6px 12px; margin-bottom: 6px; }
-  #objective { font-size: 15px; font-weight: 600; padding: 8px 12px; max-width: 340px; }
-
-  #speed { position: absolute; right: 18px; bottom: 18px; font-size: 30px; font-weight: 800; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.8); }
-  #controls-hint { position: absolute; left: 14px; bottom: 14px; font-size: 12px; color: rgba(255,255,255,0.75); padding: 6px 10px; line-height: 1.5; }
-  #crosshair { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: rgba(255,255,255,0.9); box-shadow: 0 0 6px rgba(0,0,0,0.9); }
-
-  #toast { position: absolute; left: 50%; top: 76px; transform: translateX(-50%) translateY(-8px); background: rgba(12,10,16,0.85); border: 1px solid #ffd23d; color: #ffe9a8; font-size: 16px; font-weight: 700; padding: 10px 18px; border-radius: 8px; opacity: 0; transition: opacity 0.25s, transform 0.25s; white-space: nowrap; }
-  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-  #dialogue { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); width: min(620px, 86vw); background: rgba(12,10,16,0.88); border: 1px solid #ffd23d; border-radius: 10px; padding: 14px 18px; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
-  #dialogue.show { opacity: 1; pointer-events: auto; cursor: pointer; }
-  #dialogue-speaker { font-size: 15px; font-weight: 800; color: #ffd23d; margin-bottom: 5px; }
-  #dialogue-text { font-size: 15px; line-height: 1.5; color: #f2f2f2; }
-
-  #damage-flash { position: fixed; inset: 0; pointer-events: none; z-index: 20; box-shadow: inset 0 0 120px 40px rgba(255, 30, 30, 0.55); opacity: 0; }
-  #damage-flash.flash { animation: dmg 0.5s ease-out; }
-  @keyframes dmg { 0% { opacity: 1; } 100% { opacity: 0; } }
-
-  /* ---------- Screens (GTA-style menus) ---------- */
-  .screen { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; color: #fff; background: radial-gradient(ellipse at center, rgba(20, 16, 12, 0.78), rgba(5, 4, 3, 0.92)); }
-  .screen.show { display: flex; }
-  /* Start screen: left-aligned GTA menu over the live city orbit. */
-  #screen-start { align-items: flex-start; justify-content: center; text-align: left; padding-left: 7vw; background: linear-gradient(90deg, rgba(4,4,6,0.92) 0%, rgba(4,4,6,0.78) 38%, rgba(4,4,6,0.35) 65%, rgba(4,4,6,0.08) 100%); }
-  .screen h1 { font-family: Impact, 'Arial Narrow', 'Helvetica Neue', sans-serif; font-size: 88px; font-weight: 900; letter-spacing: 5px; line-height: 0.95; color: #ffffff; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 6px 24px rgba(0,0,0,0.9); margin-bottom: 6px; }
-  .screen h1 .gold { color: #ffd23d; }
-  .screen h2 { font-family: Impact, 'Arial Narrow', 'Helvetica Neue', sans-serif; font-size: 56px; font-weight: 900; letter-spacing: 6px; color: #fff; margin-bottom: 10px; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 6px 24px rgba(0,0,0,0.9); }
-  .screen p { font-size: 16px; color: #e8dcc8; max-width: 560px; line-height: 1.6; margin-bottom: 14px; }
-  .screen .sub { font-size: 17px; color: #ffd23d; font-weight: 800; letter-spacing: 7px; margin-bottom: 26px; text-shadow: 0 2px 6px rgba(0,0,0,0.9); }
-  .menu-list { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; }
-  .btn { pointer-events: auto; cursor: pointer; display: block; width: 340px; text-align: left; font-size: 21px; font-weight: 700; letter-spacing: 1px; color: #ffffff; background: transparent; border: none; border-left: 5px solid transparent; padding: 11px 18px; margin: 2px 0; text-shadow: 0 2px 4px rgba(0,0,0,0.9); }
-  .btn:hover, .btn:focus-visible { background: rgba(255,255,255,0.14); border-left-color: #ffd23d; outline: none; }
-  .btn:active { background: rgba(255,210,61,0.25); }
-  .btn.secondary { color: #cfc8b8; }
-  .controls-table { font-size: 13px; color: #b8b0a0; line-height: 1.9; margin: 6px 0 18px; text-align: left; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
-  .controls-table b { color: #ffd23d; display: inline-block; min-width: 130px; }
-  #screen-wasted h1, #screen-busted h1 { color: #e8e8e8; }
-  #screen-pause { background: linear-gradient(90deg, rgba(4,4,6,0.9), rgba(4,4,6,0.6) 60%, rgba(4,4,6,0.25)); align-items: flex-start; text-align: left; padding-left: 7vw; }
+  /* ---------- WASTED / BUSTED ---------- */
+  .end-screen { position: fixed; inset: 0; z-index: 30; display: none; flex-direction: column; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,0.35); }
+  .end-screen.show { display: flex; }
+  .end-screen h2 { font-size: clamp(64px, 12vw, 150px); font-style: italic; text-shadow: 4px 4px 0 #000, 0 0 40px currentColor; }
+  #screen-wasted h2 { color: #ff2e4d; }
+  #screen-busted h2 { color: #2ea8ff; }
+  .end-screen button { margin-top: 24px; font-family: Impact, "Arial Black", sans-serif; font-style: italic; font-size: 26px; padding: 10px 34px; background: #ffc93d; border: none; color: #1a0b26; cursor: pointer; letter-spacing: 2px; }
 </style>
 </head>
 <body>
-<div id="game-canvas"></div>
-
-<div id="hud" class="hidden">
-  <div id="top-left">
-    <canvas id="minimap" width="180" height="180"></canvas>
-    <div id="stats">
-      <div id="money" class="panel">$0</div>
-      <div id="stars" class="panel">☆☆☆☆☆</div>
-      <div id="health-wrap" class="panel">
-        <div id="health-text">100 HP</div>
-        <div id="health-bar"><div id="health-fill"></div></div>
-      </div>
-      <div id="ammo" class="panel">🔫 12 / 48</div>
-      <div id="clock" class="panel">08:15</div>
-    </div>
-  </div>
-  <div id="top-right">
-    <div id="mission-label" class="panel">Solmar City</div>
-    <div id="objective" class="panel"></div>
-  </div>
-  <div id="speed"></div>
-  <div id="controls-hint" class="panel">WASD move &nbsp;·&nbsp; Shift run &nbsp;·&nbsp; Space jump / handbrake<br>E steal car &nbsp;·&nbsp; F punch &nbsp;·&nbsp; Click shoot &nbsp;·&nbsp; R reload<br>1 / 2 weapons &nbsp;·&nbsp; H horn &nbsp;·&nbsp; L lights &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute</div>
-  <div id="crosshair"></div>
-  <div id="toast"></div>
-  <div id="dialogue"><div id="dialogue-speaker"></div><div id="dialogue-text"></div></div>
-</div>
+<div id="game"></div>
 <div id="damage-flash"></div>
 
+<div id="hud" class="hidden">
+  <div id="objective" class="vice-font"></div>
+  <div id="hud-top-right" class="vice-font">
+    <div id="clock">18:42</div>
+    <div id="money" class="money">$200</div>
+    <div class="bars">
+      <div class="bar"><div id="health-fill"></div></div>
+      <div class="bar"><div id="armor-fill"></div></div>
+    </div>
+    <div id="weapon">🔫 PISTOL 48</div>
+    <div id="stars">☆☆☆☆☆☆</div>
+  </div>
+  <div id="minimap-wrap"><canvas id="minimap" width="180" height="180"></canvas></div>
+  <div id="speed" class="vice-font hidden"></div>
+  <div id="radio" class="vice-font hidden"></div>
+  <div id="prompt" class="hidden"></div>
+  <div id="toast" class="vice-font"></div>
+</div>
+
 <div id="screen-start" class="screen">
-  <h1>SOLMAR <span class="gold">CITY</span></h1>
-  <div class="sub">STREETS OF GOLD</div>
-  <p>Sun, sea and sin in a coastal city of gold. Steal cars, outrun the law, run jobs for Mara Solis and the Broker — and get rich doing it.</p>
-  <div class="menu-list">
-    <button id="btn-new" class="btn">New game</button>
-    <button id="btn-continue" class="btn secondary">Continue</button>
+  <div class="kicker vice-font">SOLMAR CITY PRESENTS</div>
+  <h1 class="vice-font">SOLMAR <span class="pink">CITY</span><br><span class="cyan">VICE CITY NIGHTS</span></h1>
+  <div class="sub vice-font">STREETS OF GOLD · 1986</div>
+  <div class="menu">
+    <button id="btn-new">▶ NEW GAME</button>
+    <button id="btn-continue" class="hidden">▶ CONTINUE</button>
   </div>
-  <div class="controls-table">
-    <b>WASD / mouse</b> move &amp; look &nbsp;·&nbsp; <b>Shift</b> run &nbsp;·&nbsp; <b>Space</b> jump / handbrake<br>
-    <b>E</b> steal &amp; exit car &nbsp;·&nbsp; <b>Click</b> shoot &nbsp;·&nbsp; <b>F</b> punch &nbsp;·&nbsp; <b>R</b> reload<br>
-    <b>1 / 2</b> pistol / fists &nbsp;·&nbsp; <b>H</b> horn &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; <b>M</b> mute
-  </div>
-  <p style="font-size:12px; color:#a89a80;">Progress saves automatically. All characters, places and stories are original.</p>
-</div>
-
-<div id="screen-pause" class="screen">
-  <h2>PAUSED</h2>
-  <p>Solmar City waits for no one — except right now.</p>
-  <div class="menu-list">
-    <button id="btn-resume" class="btn">Resume</button>
+  <div class="controls">
+    <b>WASD</b> walk / drive &nbsp;·&nbsp; <b>Shift</b> sprint / heli down &nbsp;·&nbsp; <b>Space</b> jump / handbrake / heli up<br>
+    <b>E</b> enter / exit car, boat &amp; helicopter — buy at shops &nbsp;·&nbsp; <b>Click</b> shoot &nbsp;·&nbsp; <b>V</b> radio station<br>
+    <b>Mouse drag</b> camera &nbsp;·&nbsp; <b>Wheel</b> zoom &nbsp;·&nbsp; <b>Esc</b> pause<br>
+    Steal cars, run missions for Mara and the Broker, buy businesses and own Vice City.
   </div>
 </div>
 
-<div id="screen-wasted" class="screen">
-  <h1>WASTED</h1>
-  <p>You got taken down. The hospital patched you up — minus $200 for the trouble.</p>
-  <div class="menu-list">
-    <button id="btn-respawn-wasted" class="btn">Respawn at the plaza</button>
+<div id="screen-pause" class="screen hidden">
+  <h1 class="vice-font">PAUSED</h1>
+  <div class="menu">
+    <button id="btn-resume">▶ RESUME</button>
+    <button id="btn-quit">■ SAVE &amp; QUIT TO MENU</button>
   </div>
 </div>
 
-<div id="screen-busted" class="screen">
-  <h1>BUSTED</h1>
-  <p>The Solmar PD caught you. Bail cost you $300, and the mission starts over.</p>
-  <div class="menu-list">
-    <button id="btn-respawn-busted" class="btn">Respawn at the plaza</button>
-  </div>
+<div id="screen-wasted" class="end-screen">
+  <h2 class="vice-font">WASTED</h2>
+  <button id="btn-respawn">RESPAWN</button>
+</div>
+<div id="screen-busted" class="end-screen">
+  <h2 class="vice-font">BUSTED</h2>
+  <button id="btn-respawn2">RESPAWN — $200 FINE</button>
 </div>
 
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
