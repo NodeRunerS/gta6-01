@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solmar City — Streets of Gold</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0c1220; font-family: Arial, Helvetica, sans-serif; }
+  #game { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* --- HUD --- */
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; z-index: 5; }
+  .panel { background: rgba(10, 14, 24, 0.62); border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(2px); }
+  #top-left { position: absolute; top: 14px; left: 14px; display: flex; flex-direction: column; gap: 6px; }
+  #stars { font-size: 26px; letter-spacing: 3px; color: #ffd23e; text-shadow: 0 2px 4px rgba(0,0,0,0.7); }
+  #stars.hot { animation: starpulse 0.9s infinite; }
+  @keyframes starpulse { 50% { transform: scale(1.07); } }
+  #cash-row { display: flex; gap: 14px; font-size: 20px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.7); }
+  #cash { color: #7dff9a; }
+  #clock { color: #e8e4d8; }
+  #minimap-wrap { position: absolute; top: 14px; right: 14px; text-align: center; }
+  #minimap { width: 200px; height: 200px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.55); box-shadow: 0 4px 16px rgba(0,0,0,0.5); background: #233d22; }
+  #minimap-label { margin-top: 4px; font-size: 12px; letter-spacing: 3px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+  #objective { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); max-width: 46%; text-align: center; font-size: 15px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+  #objective-text { color: #ffe9a0; }
+  #bottom-left { position: absolute; left: 14px; bottom: 14px; width: 240px; }
+  #health-bar { height: 16px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.35); border-radius: 8px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #37c978, #7dff9a); transition: width 0.2s; }
+  #health-fill.low { background: linear-gradient(90deg, #c0392b, #ff6b5e); }
+  #health-row { display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-top: 3px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+  #weapon-row { margin-top: 8px; font-size: 16px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+  #ammo { color: #ffe9a0; margin-left: 8px; }
+  #bottom-right { position: absolute; right: 16px; bottom: 14px; text-align: right; text-shadow: 0 2px 6px rgba(0,0,0,0.8); }
+  #speed { font-size: 44px; font-weight: bold; line-height: 1; }
+  #speed-label { font-size: 13px; letter-spacing: 2px; }
+  #hint { position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #fff; background: rgba(10,14,24,0.6); padding: 6px 14px; border-radius: 20px; text-shadow: none; }
+  #toasts { position: absolute; left: 16px; top: 46%; display: flex; flex-direction: column; gap: 8px; max-width: 380px; }
+  .toast { background: rgba(10, 14, 24, 0.78); border-left: 4px solid #f7c948; padding: 9px 12px; border-radius: 6px; font-size: 14px; line-height: 1.4; box-shadow: 0 4px 12px rgba(0,0,0,0.4); transition: opacity 0.6s; }
+  .toast.fade { opacity: 0; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); display: none; }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,0.9); box-shadow: 0 0 3px #000; }
+  #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
+  #crosshair::after { top: 10px; left: 0; width: 22px; height: 2px; }
+  #damage { position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 90px 30px rgba(255, 30, 30, 0); transition: box-shadow 0.15s; z-index: 6; }
+  #damage.hit { box-shadow: inset 0 0 90px 30px rgba(255, 30, 30, 0.55); }
+  #banner { position: absolute; left: 50%; top: 26%; transform: translate(-50%, -50%) scale(0.9); text-align: center; opacity: 0; transition: opacity 0.4s, transform 0.4s; pointer-events: none; }
+  #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #banner-title { font-size: 52px; font-weight: bold; letter-spacing: 4px; color: #f7c948; text-shadow: 0 4px 18px rgba(0,0,0,0.85); }
+  #banner-sub { font-size: 18px; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.85); margin-top: 6px; }
+
+  /* --- Overlays --- */
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(8,12,26,0.55), rgba(8,12,26,0.82)); }
+  .overlay.hidden { display: none; }
+  .card { width: min(620px, 92vw); background: rgba(12, 18, 32, 0.92); border: 1px solid rgba(247, 201, 72, 0.5); border-radius: 16px; padding: 34px 38px; color: #fff; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+  .card h1 { font-size: 54px; letter-spacing: 5px; color: #f7c948; text-shadow: 0 4px 0 #7a2e3a, 0 8px 22px rgba(0,0,0,0.7); }
+  .card h2 { font-size: 20px; letter-spacing: 6px; color: #7fe7d2; margin: 4px 0 16px; }
+  .card p { font-size: 15px; line-height: 1.6; color: #e8e4d8; margin-bottom: 14px; }
+  .card .story { font-style: italic; color: #ffe9a0; }
+  .btn { display: block; width: 100%; margin: 8px 0; padding: 13px; font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #111; background: #f7c948; border: none; border-radius: 10px; cursor: pointer; pointer-events: auto; }
+  .btn:hover { background: #ffd94d; }
+  .btn.secondary { background: transparent; color: #fff; border: 2px solid rgba(255,255,255,0.5); }
+  .btn.secondary:hover { border-color: #fff; background: rgba(255,255,255,0.08); }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; text-align: left; font-size: 13.5px; color: #cfd6dd; margin: 14px 0 4px; }
+  .controls b { color: #fff; }
+  .fine { font-size: 12px; color: #8b98a5; margin-top: 12px; }
+  #end-title { font-size: 72px; letter-spacing: 8px; color: #ff5a4e; text-shadow: 0 6px 24px rgba(0,0,0,0.8); }
+  #fallback { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: #0c1220; color: #fff; padding: 30px; text-align: center; }
+  #fallback.hidden { display: none; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="top-left">
+    <div id="stars">☆☆☆☆☆</div>
+    <div id="cash-row"><span id="cash">$250</span><span id="clock">16:30</span></div>
+  </div>
+  <div id="minimap-wrap">
+    <canvas id="minimap" width="200" height="200"></canvas>
+    <div id="minimap-label">SOLMAR CITY</div>
+  </div>
+  <div id="objective" class="panel"><span id="objective-text">Free roam — explore Solmar City</span></div>
+  <div id="bottom-left">
+    <div id="health-bar"><div id="health-fill"></div></div>
+    <div id="health-row"><span>HEALTH</span><span id="health-text">100</span></div>
+    <div id="weapon-row"><span id="weapon">PISTOL</span><span id="ammo">12 / ∞</span></div>
+  </div>
+  <div id="bottom-right"><div id="speed"></div><div id="speed-label"></div></div>
+  <div id="hint"></div>
+  <div id="toasts"></div>
+  <div id="crosshair"></div>
+  <div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
+</div>
+<div id="damage"></div>
+
+<div id="menu" class="overlay">
+  <div class="card">
+    <h1>SOLMAR CITY</h1>
+    <h2>STREETS OF GOLD</h2>
+    <p class="story">Rex Dalton is back in Solmar — a sun-soaked coastal city of gold, greed and getaway cars. The Broker is in town, Mara has a plan, and the police have had enough. Steal cars, lose the heat, pull the Big Score.</p>
+    <p>An original open-world crime game: explore the city on foot and by car, steal vehicles, outrun the Solmar PD, fight, and run five story missions — all with a live minimap, save game and synthesized sound.</p>
+    <button id="btn-continue" class="btn secondary hidden">▶ Continue saved game</button>
+    <button id="btn-start" class="btn">▶ New game</button>
+    <div class="controls">
+      <div><b>W A S D</b> — move / drive</div><div><b>Mouse drag</b> — camera</div>
+      <div><b>Shift</b> — sprint</div><div><b>Wheel</b> — zoom camera</div>
+      <div><b>E</b> — steal / exit car</div><div><b>Click</b> — shoot (pistol)</div>
+      <div><b>Space</b> — jump / handbrake</div><div><b>F</b> — punch (fists)</div>
+      <div><b>1 / 2</b> — fists / pistol</div><div><b>R</b> — reload</div>
+      <div><b>H</b> — horn &nbsp; <b>L</b> — headlights</div><div><b>P / Esc</b> — pause &nbsp; <b>M</b> — mute</div>
+    </div>
+    <div class="fine">Progress saves automatically. Built for make.fun's GTA 6 bounty — an original city, story and art; no Rockstar content.</div>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="card">
+    <h1 style="font-size:40px">PAUSED</h1>
+    <p>Take a breath, Rex. The city will wait.</p>
+    <button id="btn-resume" class="btn">▶ Resume</button>
+    <button id="btn-sidejob" class="btn secondary">📦 Take a side job (courier run)</button>
+    <button id="btn-restart" class="btn secondary">↺ Restart story</button>
+    <button id="btn-save-quit" class="btn secondary">💾 Save &amp; quit to menu</button>
+  </div>
+</div>
+
+<div id="end" class="overlay hidden">
+  <div class="card">
+    <div id="end-title">WASTED</div>
+    <p id="end-sub"></p>
+    <button id="btn-respawn" class="btn">↻ Get back on your feet (−20% cash)</button>
+  </div>
+</div>
+
+<div id="fallback" class="hidden"></div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
