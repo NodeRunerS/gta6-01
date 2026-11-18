@@ -13,7 +13,7 @@ Entry for make.fun's **"Make GTA 6"** (`gta6-01`, free entry, $1,666 shared by t
 - **City:** an 8×8-block coastal city with ~120 buildings, golden-hour light, traffic and pedestrians.
 - **Driving:** 6 car types to steal and drive; horn and headlights included.
 - **Wanted:** 0–5 stars — police chase, ram and arrest you as the heat rises.
-- **Missions:** 5 story jobs for Rex, plus side courier jobs.
+- **Missions:** 5 story jobs for Mara Solis, Eddie and the Broker, plus side courier jobs.
 - **Combat:** fists and pistol, with reload, health and ammo on the HUD.
 - **HUD:** live circular minimap, objective tracker, wanted stars, health bar, clock.
 - **Screens:** start, pause, WASTED and BUSTED; progress saves to localStorage.
@@ -21,50 +21,47 @@ Entry for make.fun's **"Make GTA 6"** (`gta6-01`, free entry, $1,666 shared by t
 
 ## Controls
 
-| Keys | Action |
+| Key | Action |
 | --- | --- |
-| W A S D | Move / drive |
-| Mouse drag / wheel | Camera / zoom |
-| Shift | Sprint |
-| E | Steal / exit car |
-| Click | Shoot (pistol) |
-| Space | Jump / handbrake |
-| F | Punch (fists) |
-| 1 / 2 | Fists / pistol |
+| WASD / arrows | Move (on foot) / drive (in a car) |
+| Mouse drag | Orbit the camera |
+| Mouse click | Shoot (pistol) / punch (fists) |
+| Shift | Run |
+| Space | Jump (on foot) / handbrake (driving) |
+| E | Steal a car / exit a car |
+| F | Punch |
+| 1 / 2 | Pistol / fists |
 | R | Reload |
-| H / L | Horn / headlights |
+| H | Horn |
+| L | Headlights |
 | P / Esc | Pause |
 | M | Mute |
 
-## Play it
-
-The game is static files under `game/` — no build step, no network requests. Serve it and open `game/index.html` in desktop Chrome:
+## How to run
 
 ```sh
 node serve.ts
-# open http://localhost:8080
 ```
 
-Three.js is vendored under `game/vendor/`; every script, image, sound and font the game loads is a file under `game/` or a `data:` URI.
-
-## The program
-
-`main.ts` (Node 22) hands the game in: it copies `game/` and `screenshots/` to the output directory and writes `output/dossier.json` with the kit's `buildDossier`:
-
-```sh
-mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-```
+Then open http://localhost:8080 in desktop Chrome.
 
 ## Files
 
-| File | What it is |
+| Path | What it is |
 | --- | --- |
-| `main.ts` | Entry program: copies `game/` and `screenshots/`, writes `dossier.json` |
-| `serve.ts` | Local static server for playtesting (`node serve.ts`, port 8080) |
-| `game/index.html` | The game page (HUD, overlays, import map) |
-| `game/src/` | Game source, one job per file: `city`, `vehicles`, `people`, `police`, `missions`, `player`, `hud`, `audio`, `util`, `main` |
-| `game/vendor/three.module.min.js` | Vendored three.js |
-| `screenshots/` | 4 real renders of the game (1280×720 each) |
-| `vendor/makefun-game.ts` | The kit's dossier library, unchanged |
-| `LICENSE` | MIT |
-| `README.md` | This file |
+| `main.ts` | Entry program: copies `game/` and `screenshots/` to the output dir and writes `dossier.json` |
+| `serve.ts` | Tiny static server for local play (`node serve.ts`, port 8080) |
+| `game/index.html` | The game page: canvas, HUD, start/pause/WASTED/BUSTED screens |
+| `game/src/main.js` | Entry point: renderer, game loop, input, save/load |
+| `game/src/city.js` | The 8×8 city: roads, buildings, plaza, park, beach, mountains |
+| `game/src/vehicles.js` | Car meshes, arcade driving, traffic, parked cars |
+| `game/src/people.js` | Pedestrians and armed enemies |
+| `game/src/police.js` | Wanted system, police chases, rams and arrests |
+| `game/src/player.js` | On-foot and driving controls, combat |
+| `game/src/missions.js` | 5 story missions, courier side jobs, WASTED/BUSTED |
+| `game/src/hud.js` | HUD, live minimap, toasts, dialogue |
+| `game/src/audio.js` | WebAudio sound effects |
+| `game/src/state.js` | Shared game state |
+| `game/src/util.js` | Math, RNG and collision helpers |
+| `game/vendor/three.module.min.js` | three.js 0.160.0, vendored |
+| `screenshots/` | 4 gameplay screenshots (1280×720) |
