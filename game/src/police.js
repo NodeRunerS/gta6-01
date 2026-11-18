@@ -21,6 +21,11 @@ export class Police {
     this.decayTimer = 0;
     this.flashTimer = 0;
     this.ramCooldown = 0;
+    // One shared strobe light: it rides on the nearest unit and alternates
+    // red/blue, throwing the flash onto nearby cars, walls and road.
+    this.strobeLight = new THREE.PointLight(0xff2222, 0, 30, 1.8);
+    this.strobeLight.position.set(0, 3.5, 0);
+    S.scene.add(this.strobeLight);
   }
 
   /** Raise the wanted level (clamped 0..5). */
@@ -217,12 +222,31 @@ export class Police {
       }
     }
 
-    // Flash the light bars and run the siren while any unit is active.
+    // Flash the light bars and run the siren while any unit is active:
+    // lens emissive pulses red/blue in opposition, and the shared strobe
+    // light rides the nearest unit so the flash lands on nearby surfaces.
     this.flashTimer += dt;
     const flash = Math.sin(this.flashTimer * 10) > 0;
     for (const u of this.units) {
-      if (u.group.userData.lightRed) u.group.userData.lightRed.visible = flash;
-      if (u.group.userData.lightBlue) u.group.userData.lightBlue.visible = !flash;
+      const ud = u.group.userData;
+      if (ud.lightRedMat) ud.lightRedMat.emissiveIntensity = flash ? 4 : 0.25;
+      if (ud.lightBlueMat) ud.lightBlueMat.emissiveIntensity = flash ? 0.25 : 4;
+    }
+    if (this.units.length > 0) {
+      let nearest = this.units[0];
+      let best = Infinity;
+      for (const u of this.units) {
+        const d = Math.hypot(u.pos.x - p.pos.x, u.pos.z - p.pos.z);
+        if (d < best) {
+          best = d;
+          nearest = u;
+        }
+      }
+      this.strobeLight.position.set(nearest.pos.x, 3.5, nearest.pos.z);
+      this.strobeLight.color.set(flash ? 0xff2222 : 0x2266ff);
+      this.strobeLight.intensity = 60;
+    } else {
+      this.strobeLight.intensity = 0;
     }
     if (S.sounds) S.sounds.siren(this.units.length > 0, dt);
 
