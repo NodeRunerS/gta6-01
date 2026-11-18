@@ -55,6 +55,9 @@ function init() {
   const renderer = new THREE.WebGLRenderer({ antialias: !lowfx });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  // Warmer, more saturated filmic grade (GTA look).
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
   renderer.shadowMap.enabled = !lowfx;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.getElementById('game-canvas').appendChild(renderer.domElement);

@@ -4,11 +4,20 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { S } from './state.js';
 import { circleVsBox, clamp, mulberry32 } from './util.js';
-import { makePersonMesh } from './people.js';
+import { makePersonMesh, animateWalk } from './people.js';
 
 export class Player {
   constructor(x, z) {
-    this.group = makePersonMesh(0x2a6ac2);
+    // Rex: blue shirt, dark jacket, jeans, dark flat hair.
+    this.group = makePersonMesh(0x3a6ac2, 0xd9a986, {
+      hairStyle: 'flat',
+      hairColor: 0x1a1a1a,
+      pants: 0x2e3a4a,
+      jacket: 0x1e3a5f,
+      scale: 1.02,
+    });
+    this.parts = this.group.userData.parts;
+    this.walkPhase = 0;
     this.group.position.set(x, 0, z);
     this.pos = { x, y: 0, z };
     this.vel = { x: 0, z: 0 };
@@ -280,9 +289,11 @@ export class Player {
     }
     this.group.position.set(this.pos.x, this.pos.y, this.pos.z);
     this.group.rotation.y = -this.heading;
-    // Walk bob.
+    // Walk cycle: swing arms and legs with speed, small bob.
     const moving = Math.hypot(this.vel.x, this.vel.z);
-    this.group.position.y = this.pos.y + (this.onGround ? Math.abs(Math.sin(S.time * 10)) * 0.05 * (moving / 6) : 0);
+    if (this.onGround && moving > 0.5) this.walkPhase += dt * moving * 1.35;
+    animateWalk(this.parts, this.walkPhase, this.onGround ? Math.min(1, moving / 6) : 0);
+    this.group.position.y = this.pos.y + (this.onGround ? Math.abs(Math.sin(this.walkPhase)) * 0.05 * (moving / 6) : 0);
     if (S.sounds) S.sounds.engine(0, false);
   }
 }

@@ -119,16 +119,16 @@ export class HUD {
     const scale = W / 470;
     const toMap = (x, z) => [90 + x * scale, 90 + z * scale];
     ctx.clearRect(0, 0, W, W);
-    // Sea and sand.
-    ctx.fillStyle = '#2f7fb8';
+    // GTA-style dark map: charcoal land, deep blue sea, pale sand.
+    ctx.fillStyle = '#0e3a5e';
     ctx.fillRect(0, 90 + 224 * scale, W, W - (90 + 224 * scale));
-    ctx.fillStyle = '#e8d29a';
+    ctx.fillStyle = '#8a7a52';
     ctx.fillRect(0, 90 + 224 * scale - 8, W, 8);
-    // Grass.
-    ctx.fillStyle = '#5d8a48';
+    // Land.
+    ctx.fillStyle = '#20241f';
     ctx.fillRect(0, 0, W, 90 + 224 * scale);
-    // Roads.
-    ctx.strokeStyle = '#3a3d42';
+    // Roads: light grey on dark, GTA-style.
+    ctx.strokeStyle = '#9aa0a8';
     ctx.lineWidth = 12 * scale;
     for (const line of CITY.LINES) {
       const [x1, y1] = toMap(line, -230);
@@ -145,13 +145,22 @@ export class HUD {
       ctx.stroke();
     }
     // Park and plaza.
-    ctx.fillStyle = '#4a7a38';
+    ctx.fillStyle = '#2c4a28';
     const [px, py] = toMap(CITY.PARK.x - 23, CITY.PARK.z - 23);
     ctx.fillRect(px, py, 46 * scale, 46 * scale);
-    ctx.fillStyle = '#d9cfba';
+    ctx.fillStyle = '#555a60';
     const [qx, qy] = toMap(CITY.PLAZA.x - 23, CITY.PLAZA.z - 23);
     ctx.fillRect(qx, qy, 46 * scale, 46 * scale);
-    // Mission / courier marker.
+    // Safehouse blip (green) at the plaza.
+    const [sx, sy] = toMap(CITY.PLAZA.x, CITY.PLAZA.z);
+    ctx.fillStyle = '#3ddc5f';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Mission / courier marker (yellow).
     const missions = S.missions;
     if (missions && missions.marker.visible) {
       const [mx, my] = toMap(missions.marker.position.x, missions.marker.position.z);
@@ -170,8 +179,8 @@ export class HUD {
       const [cx, cy] = toMap(c.pos.x, c.pos.z);
       ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
     }
-    // Enemies.
-    ctx.fillStyle = '#ff2222';
+    // Enemies (dark red).
+    ctx.fillStyle = '#a02020';
     for (const e of S.enemies) {
       if (e.dead) continue;
       const [ex, ey] = toMap(e.pos.x, e.pos.z);
@@ -179,23 +188,26 @@ export class HUD {
       ctx.arc(ex, ey, 3, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Police.
-    ctx.fillStyle = '#2244ff';
+    // Police (bright red with white ring).
     for (const u of S.police ? S.police.units : []) {
       const [ux, uy] = toMap(u.pos.x, u.pos.z);
+      ctx.fillStyle = '#ff2a2a';
       ctx.beginPath();
       ctx.arc(ux, uy, 3.5, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
     }
-    // Player arrow.
+    // Player arrow (GTA blue with white outline).
     const p = S.player;
     if (p) {
       const [px2, py2] = toMap(p.pos.x, p.pos.z);
       ctx.save();
       ctx.translate(px2, py2);
       ctx.rotate(-p.heading - Math.PI / 2 + Math.PI);
-      ctx.fillStyle = '#00e5ff';
-      ctx.strokeStyle = '#003344';
+      ctx.fillStyle = '#2f9bff';
+      ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(0, -7);
@@ -206,7 +218,7 @@ export class HUD {
       ctx.stroke();
       ctx.restore();
       // View direction line.
-      ctx.strokeStyle = 'rgba(0,229,255,0.5)';
+      ctx.strokeStyle = 'rgba(47,155,255,0.5)';
       ctx.beginPath();
       ctx.moveTo(px2, py2);
       ctx.lineTo(px2 + Math.cos(p.heading) * 10, py2 - Math.sin(p.heading) * 10);
