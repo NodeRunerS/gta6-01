@@ -1,435 +1,381 @@
-// Solmar City — missions and story: five story jobs for Rex, handed out by
-// Mara Solis, Eddie and the Broker, with dialogue, a glowing objective
-// beacon, timers, crates to collect, armed bank guards, and repeatable side
-// jobs once the story is done.
-import * as THREE from 'three';
+// Story missions, the courier side jobs, the waypoint marker, dialogue, and the
+// WASTED / BUSTED flow. Five chained missions, each with steps, a cash reward
+// and a giver who talks to the player.
+import * as THREE from '../vendor/three.module.min.js';
+import { S } from './state.js';
+import { CITY } from './city.js';
+import { clamp, moneyFmt, rand, randInt } from './util.js';
+import { Enemy } from './people.js';
 
 const MISSIONS = [
   {
-    id: 'wheels-up',
-    title: 'Wheels Up',
+    name: 'Wheels Up',
     giver: 'Mara Solis',
-    briefing: 'Rex, welcome back to Solmar. The Broker is in town and he pays in gold. First, you need wheels.',
-    dialogue: 'Borrow a car — any car. Press E near one to take it. Then meet me at the Neon Pier.',
     reward: 500,
+    brief: [
+      'Mara Solis: "Jack, you\'re new in Solmar. First rule — nobody walks. Steal a car."',
+      '"Any parked car will do. Press E next to one. Then bring it to the docks."',
+    ],
     steps: [
-      { type: 'steal', text: 'Steal a car (press E near one)', radius: 0 },
-      { type: 'drive', target: 'pier', text: 'Drive to the Neon Pier', radius: 6 },
+      { type: 'car', text: 'Steal a car — press E next to a parked car' },
+      { type: 'goto', pos: { x: 168, z: -168 }, text: 'Drive to the docks' },
     ],
   },
   {
-    id: 'the-courier',
-    title: 'The Courier',
-    giver: 'Mara Solis',
-    briefing: 'A package is waiting at Hotel Miramar. Take it to the Neon Pier. Fast — and quiet.',
-    dialogue: 'Pick up the package at the hotel, then deliver it to the pier. You have 90 seconds.',
+    name: 'The Courier',
+    giver: 'Eddie',
     reward: 800,
+    timed: 100,
+    brief: [
+      'Eddie: "Mara says you can drive. Prove it. Pick up the package at Palm Park."',
+      '"Deliver it to Solmar Plaza. You have 100 seconds — the client hates waiting."',
+    ],
     steps: [
-      { type: 'goto', target: 'hotel', text: 'Pick up the package at Hotel Miramar', radius: 5 },
-      { type: 'drive', target: 'pier', text: 'Deliver the package to the Neon Pier (90s)', radius: 6, timer: 90 },
+      { type: 'goto', pos: { x: 140, z: 140 }, text: 'Pick up the package at Palm Park' },
+      { type: 'goto', pos: { x: -28, z: -28 }, text: 'Deliver the package to Solmar Plaza' },
     ],
   },
   {
-    id: 'heat-wave',
-    title: 'Heat Wave',
-    giver: 'Eddie',
-    briefing: 'Cops are crawling all over the east side. Shake the heat, then get to the safehouse on the west side.',
-    dialogue: 'Lose the cops first — stay out of sight until the stars fade. Then drive to the safehouse.',
-    reward: 1000,
-    steps: [
-      { type: 'escape', text: 'Lose your wanted level', radius: 0 },
-      { type: 'drive', target: 'safehouse', text: 'Reach the safehouse', radius: 6 },
-    ],
-  },
-  {
-    id: 'supply-run',
-    title: 'Supply Run',
-    giver: 'Eddie',
-    briefing: 'The Broker needs three crates stashed around the city. Grab them all and bring the job home.',
-    dialogue: 'Three crates, three corners of the city. Follow the beacon, grab each one.',
+    name: 'Heat on the Strip',
+    giver: 'Mara Solis',
     reward: 1200,
+    brief: [
+      'Mara Solis: "The Broker\'s rivals tipped off the cops. Two stars, and they want you."',
+      '"Survive the heat for 30 seconds, then slip to the safehouse on the north-west corner."',
+    ],
     steps: [
-      { type: 'collect', target: 'crate1', text: 'Collect crate 1 of 3', radius: 3 },
-      { type: 'collect', target: 'crate2', text: 'Collect crate 2 of 3', radius: 3 },
-      { type: 'collect', target: 'crate3', text: 'Collect crate 3 of 3', radius: 3 },
+      { type: 'survive', seconds: 30, text: 'Survive the heat — 30 seconds' },
+      { type: 'goto', pos: { x: -196, z: 196 }, text: 'Reach the safehouse' },
     ],
   },
   {
-    id: 'the-big-score',
-    title: 'The Big Score',
+    name: "The Broker's Cut",
     giver: 'The Broker',
-    briefing: 'The Solmar National Bank. Grab the cash, deal with the guards, and bring it home. This is the one, Rex.',
-    dialogue: 'Get to the bank, grab the cash — hold your ground for 3 seconds — then lose the heat and reach the safehouse.',
-    reward: 3000,
+    reward: 2000,
+    brief: [
+      'The Broker: "Three cash drops around the city. My couriers got cold feet."',
+      '"Collect all three. My men at the second drop will not be happy to see you."',
+    ],
     steps: [
-      { type: 'goto', target: 'bank', text: 'Get to Solmar National Bank', radius: 6 },
-      { type: 'grab', target: 'bank', text: 'Grab the cash (stay in the vault)', radius: 5, hold: 3 },
-      { type: 'escape', text: 'Lose the cops', radius: 0 },
-      { type: 'drive', target: 'safehouse', text: 'Escape to the safehouse', radius: 6 },
+      { type: 'collect', positions: [{ x: -140, z: -112 }, { x: 84, z: 112 }, { x: 168, z: -28 }], text: 'Collect the 3 cash drops' },
+    ],
+  },
+  {
+    name: 'Golden Getaway',
+    giver: 'Mara Solis',
+    reward: 3000,
+    brief: [
+      'Mara Solis: "Last job. A cherry-red sports car is parked at the beachfront."',
+      '"Take it and bring it to the marina. The cops will be all over you — make it count."',
+    ],
+    steps: [
+      { type: 'stealSports', pos: { x: 28, z: 227.5 }, text: 'Steal the sports car at the beachfront' },
+      { type: 'goto', pos: { x: 196, z: 224 }, text: 'Drive to the marina' },
     ],
   },
 ];
 
-const CRATE_SPOTS = {
-  crate1: { x: -126, z: -126 },
-  crate2: { x: 126, z: -54 },
-  crate3: { x: 54, z: 126 },
-};
+export class Missions {
+  constructor() {
+    this.defs = MISSIONS;
+    this.current = null; // { def, stepIndex, timer, collected:Set, drops:[meshes], enemiesSpawned }
+    this.nextStartAt = 0;
+    this.sideJob = null; // { phase:'pickup'|'deliver', pickup, deliver, reward }
+    this.sideCooldown = 0;
+    this._buildMarker();
+    S.missions = this;
+  }
 
-export class MissionManager {
-  constructor(scene, city, hooks) {
-    this.scene = scene;
-    this.city = city;
-    this.hooks = hooks; // { toast, objective, cash, jingle, fail, storyDone, wanted }
-    this.index = 0;
-    this.stepIndex = 0;
-    this.active = false;
-    this.stepTimer = 0;
-    this.holdTimer = 0;
-    this.sideJob = null;
-    this.guards = [];
-    this.crates = [];
-    // Objective beacon: a light pillar, a spinning diamond and a ground ring.
-    this.beacon = new THREE.Group();
-    const pillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.4, 2.4, 34, 16, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xf7c948, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false })
+  _buildMarker() {
+    const group = new THREE.Group();
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.4, 1.4, 46, 12, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xffd23d, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }),
     );
-    pillar.position.y = 17;
-    this.beacon.add(pillar);
-    this.diamond = new THREE.Mesh(
-      new THREE.OctahedronGeometry(1.1),
-      new THREE.MeshLambertMaterial({ color: 0xf7c948, emissive: 0xb8860b, emissiveIntensity: 0.9 })
+    beam.position.y = 23;
+    group.add(beam);
+    const diamond = new THREE.Mesh(
+      new THREE.OctahedronGeometry(1.6),
+      new THREE.MeshBasicMaterial({ color: 0xffd23d }),
     );
-    this.diamond.position.y = 5;
-    this.beacon.add(this.diamond);
+    diamond.position.y = 10;
+    group.add(diamond);
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(2.2, 3, 24),
-      new THREE.MeshBasicMaterial({ color: 0xf7c948, transparent: true, opacity: 0.8, side: THREE.DoubleSide })
+      new THREE.RingGeometry(2.6, 3.4, 28),
+      new THREE.MeshBasicMaterial({ color: 0xffd23d, transparent: true, opacity: 0.85, side: THREE.DoubleSide }),
     );
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.12;
-    this.beacon.add(ring);
-    this.beacon.visible = false;
-    scene.add(this.beacon);
+    ring.position.y = 0.25;
+    group.add(ring);
+    group.visible = false;
+    S.scene.add(group);
+    this.marker = group;
+    this.markerDiamond = diamond;
   }
 
-  reset() {
-    this.index = 0;
-    this.stepIndex = 0;
-    this.active = false;
-    this.sideJob = null;
-    this.clearGuards();
-    this.clearCrates();
-    this.beacon.visible = false;
+  _setMarker(x, z, visible = true) {
+    this.marker.position.set(x, 0, z);
+    this.marker.visible = visible;
   }
 
-  start() {
-    this.active = true;
-    this.index = 0;
-    this.stepIndex = 0;
-    this.beginMission();
+  _hideMarker() {
+    this.marker.visible = false;
   }
 
-  currentMission() {
-    return MISSIONS[this.index] || null;
+  startMission(index) {
+    const def = this.defs[index];
+    if (!def) return;
+    this.current = { def, stepIndex: 0, timer: 0, collected: new Set(), drops: [], enemiesSpawned: false, failed: false };
+    S.missionIndex = index;
+    if (S.hud) {
+      S.hud.showDialogue(def.giver, def.brief);
+      S.hud.showToast(`Mission ${index + 1}/5: ${def.name} — ${moneyFmt(def.reward)}`);
+    }
+    if (def.name === 'Heat on the Strip' && S.police) S.police.addWanted(2);
+    this._enterStep();
   }
 
-  currentStep() {
-    const m = this.currentMission();
-    return m ? m.steps[this.stepIndex] : null;
-  }
-
-  targetPos(name) {
-    if (CRATE_SPOTS[name]) return CRATE_SPOTS[name];
-    return this.city[name] || { x: 0, z: 0 };
-  }
-
-  markerPos() {
-    const step = this.currentStep();
-    if (!step || !step.target) return null;
-    return this.targetPos(step.target);
-  }
-
-  beginMission() {
-    const m = this.currentMission();
-    if (!m) {
-      this.active = false;
-      this.hooks.storyDone();
+  _enterStep() {
+    const c = this.current;
+    if (!c) return;
+    const step = c.def.steps[c.stepIndex];
+    if (!step) {
+      this._completeMission();
       return;
     }
-    this.stepIndex = 0;
-    this.stepTimer = 0;
-    this.holdTimer = 0;
-    this.hooks.toast(`${m.giver}: ${m.briefing}`, 7);
-    this.hooks.toast(m.dialogue, 7);
-    if (m.id === 'heat-wave') this.hooks.wanted(2);
-    if (m.id === 'the-big-score') {
-      this.hooks.wanted(0);
-      this.spawnGuards();
-    }
-    if (this.currentStep().type === 'collect') this.spawnCrates();
-    this.refreshObjective();
-    this.updateBeacon();
-  }
-
-  refreshObjective() {
-    const m = this.currentMission();
-    const s = this.currentStep();
-    if (m && s) this.hooks.objective(`${m.title} — ${s.text}`);
-    else if (this.sideJob) this.hooks.objective(`Side Job — ${this.sideJob.text}`);
-    else this.hooks.objective('Free roam — explore Solmar City');
-  }
-
-  updateBeacon() {
-    const pos = this.markerPos();
-    if (pos && this.active) {
-      this.beacon.visible = true;
-      this.beacon.position.set(pos.x, 0, pos.z);
-    } else if (this.sideJob) {
-      this.beacon.visible = true;
-      this.beacon.position.set(this.sideJob.target.x, 0, this.sideJob.target.z);
-    } else {
-      this.beacon.visible = false;
-    }
-  }
-
-  spawnGuards() {
-    this.clearGuards();
-    const bank = this.city.bank;
-    const spots = [{ x: bank.x - 6, z: bank.z - 4 }, { x: bank.x + 6, z: bank.z + 4 }];
-    for (const s of spots) {
-      const mesh = new THREE.Group();
-      const suit = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.76, 0.36), suit);
-      torso.position.y = 1.12;
-      torso.castShadow = true;
-      mesh.add(torso);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), new THREE.MeshLambertMaterial({ color: 0xe0ac69 }));
-      head.position.y = 1.68;
-      mesh.add(head);
-      const legs = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.72, 0.26), suit);
-      legs.position.y = 0.36;
-      mesh.add(legs);
-      const gun = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.7), new THREE.MeshLambertMaterial({ color: 0x111111 }));
-      gun.position.set(0.3, 1.2, 0.4);
-      mesh.add(gun);
-      mesh.position.set(s.x, 0, s.z);
-      mesh.userData.shoot = { kind: 'enemy', ref: null };
-      this.scene.add(mesh);
-      const guard = { mesh, health: 30, alive: true, shootTimer: 1 + Math.random(), x: s.x, z: s.z };
-      mesh.userData.shoot.ref = guard;
-      this.guards.push(guard);
-    }
-  }
-
-  clearGuards() {
-    for (const g of this.guards) this.scene.remove(g.mesh);
-    this.guards = [];
-  }
-
-  spawnCrates() {
-    this.clearCrates();
-    for (const name of ['crate1', 'crate2', 'crate3']) {
-      const p = CRATE_SPOTS[name];
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(1.4, 1.4, 1.4),
-        new THREE.MeshLambertMaterial({ color: 0xe67e22, emissive: 0x7a3c00, emissiveIntensity: 0.5 })
-      );
-      mesh.position.set(p.x, 0.7, p.z);
-      mesh.castShadow = true;
-      mesh.userData.crateName = name;
-      this.scene.add(mesh);
-      this.crates.push({ name, mesh, taken: false });
-    }
-  }
-
-  clearCrates() {
-    for (const c of this.crates) this.scene.remove(c.mesh);
-    this.crates = [];
-  }
-
-  // A guard was shot: returns true when it dies.
-  damageGuard(guard, amount) {
-    if (!guard.alive) return false;
-    guard.health -= amount;
-    if (guard.health <= 0) {
-      guard.alive = false;
-      guard.mesh.rotation.x = -Math.PI / 2;
-      guard.mesh.position.y = 0.3;
-      return true;
-    }
-    return false;
-  }
-
-  guardsAlive() {
-    return this.guards.filter((g) => g.alive).length;
-  }
-
-  completeStep(world) {
-    const m = this.currentMission();
-    this.stepIndex++;
-    this.stepTimer = 0;
-    this.holdTimer = 0;
-    if (this.stepIndex >= m.steps.length) {
-      this.hooks.cash(m.reward);
-      this.hooks.jingle();
-      this.hooks.toast(`Mission complete: ${m.title} — $${m.reward}`, 5);
-      this.clearCrates();
-      this.index++;
-      if (this.index >= MISSIONS.length) {
-        this.active = false;
-        this.beacon.visible = false;
-        this.hooks.storyDone();
-        this.refreshObjective();
-        return;
+    c.timer = step.seconds ?? step.timed ?? 0;
+    if (S.hud) S.hud.setObjective(step.text);
+    if (step.type === 'goto' || step.type === 'stealSports') {
+      this._setMarker(step.pos.x, step.pos.z);
+    } else if (step.type === 'collect') {
+      // Show glowing cash stacks at each drop and mark the nearest one.
+      for (const pos of step.positions) {
+        const stack = new THREE.Mesh(
+          new THREE.BoxGeometry(1.6, 0.9, 1.2),
+          new THREE.MeshLambertMaterial({ color: 0x2a9a4a, emissive: 0x0a4418 }),
+        );
+        stack.position.set(pos.x, 0.6, pos.z);
+        S.scene.add(stack);
+        c.drops.push({ pos, mesh: stack });
       }
-      this.beginMission();
+      this._updateCollectMarker();
+    } else if (step.type === 'car' || step.type === 'survive') {
+      this._hideMarker();
+    }
+  }
+
+  _updateCollectMarker() {
+    const c = this.current;
+    if (!c) return;
+    const step = c.def.steps[c.stepIndex];
+    let best = null;
+    let bestD = Infinity;
+    step.positions.forEach((pos, i) => {
+      if (c.collected.has(i)) return;
+      const d = Math.hypot(pos.x - S.player.pos.x, pos.z - S.player.pos.z);
+      if (d < bestD) {
+        bestD = d;
+        best = pos;
+      }
+    });
+    if (best) this._setMarker(best.x, best.z);
+    else this._hideMarker();
+  }
+
+  _advanceStep() {
+    const c = this.current;
+    if (!c) return;
+    c.stepIndex++;
+    if (S.sounds) S.sounds.pickup();
+    this._enterStep();
+  }
+
+  _completeMission() {
+    const c = this.current;
+    if (!c) return;
+    const def = c.def;
+    S.money += def.reward;
+    S.completedMissions.push(def.name);
+    S.missionIndex = S.completedMissions.length;
+    if (S.hud) {
+      S.hud.showToast(`Mission complete: ${def.name}  +${moneyFmt(def.reward)}`);
+      S.hud.setObjective('');
+    }
+    if (S.sounds) S.sounds.missionDone();
+    for (const d of c.drops) S.scene.remove(d.mesh);
+    this.current = null;
+    this._hideMarker();
+    if (S.completedMissions.length >= this.defs.length) {
+      if (S.hud) S.hud.showDialogue('Mara Solis', ['"That\'s all five. Solmar is yours now, Jack. Spend it well."']);
       return;
     }
-    const s = this.currentStep();
-    if (s.type === 'collect') this.spawnCrates();
-    this.refreshObjective();
-    this.updateBeacon();
+    this.nextStartAt = S.time + 4;
   }
 
-  startSideJob(world) {
-    const rng = Math.random;
-    const a = this.city.randomRoadPoint(rng);
-    let b = this.city.randomRoadPoint(rng);
-    while (Math.hypot(b.x - a.x, b.z - a.z) < 80) b = this.city.randomRoadPoint(rng);
-    this.sideJob = {
-      pickup: a, target: b,
-      text: 'Pick up the package, then deliver it',
-      stage: 'pickup', timer: 75, reward: 300 + Math.floor(rng() * 4) * 100,
-    };
-    this.beacon.visible = true;
-    this.beacon.position.set(a.x, 0, a.z);
-    this.hooks.toast('Side Job: a package needs a courier. Follow the beacon.', 5);
-    this.refreshObjective();
+  _failMission(reason) {
+    const c = this.current;
+    if (!c) return;
+    if (S.hud) S.hud.showToast(`${reason} — mission failed, try again`);
+    for (const d of c.drops) S.scene.remove(d.mesh);
+    const index = this.defs.indexOf(c.def);
+    this.current = null;
+    this._hideMarker();
+    this.nextStartAt = S.time + 2;
+    S.missionIndex = index;
+    // Retry the same mission shortly.
+    this._retryIndex = index;
   }
 
-  update(dt, world) {
-    // Beacon animation.
-    if (this.beacon.visible) {
-      this.diamond.rotation.y += dt * 2;
-      this.diamond.position.y = 5 + Math.sin(performance.now() * 0.002) * 0.5;
+  update(dt) {
+    // Auto-start the next mission a few seconds after the previous one.
+    if (!this.current && this.nextStartAt > 0 && S.time >= this.nextStartAt && S.mode === 'playing') {
+      this.nextStartAt = 0;
+      const idx = this._retryIndex ?? S.completedMissions.length;
+      this._retryIndex = undefined;
+      this.startMission(idx);
     }
-    for (const c of this.crates) {
-      if (!c.taken) c.mesh.rotation.y += dt * 0.8;
+    // Courier side jobs between missions.
+    if (!this.current && this.nextStartAt === 0 && S.completedMissions.length >= 1 && S.mode === 'playing') {
+      this._updateCourier(dt);
     }
-    // Guards shoot at Rex when close.
-    for (const g of this.guards) {
-      if (!g.alive) continue;
-      const dx = world.playerPos.x - g.mesh.position.x;
-      const dz = world.playerPos.z - g.mesh.position.z;
-      const d = Math.hypot(dx, dz);
-      g.mesh.rotation.y = Math.atan2(dx, dz);
-      g.shootTimer -= dt;
-      if (d < 42 && g.shootTimer <= 0) {
-        g.shootTimer = 1.7;
-        if (Math.random() < 0.55) world.onGuardShot(g, d);
-      }
-    }
-    // Side job.
-    if (this.sideJob) {
-      this.sideJob.timer -= dt;
-      if (this.sideJob.timer <= 0) {
-        this.hooks.toast('Side Job failed — the package went cold.', 4);
-        this.hooks.fail();
-        this.sideJob = null;
-        this.beacon.visible = false;
-        this.refreshObjective();
-        return;
-      }
-      const target = this.sideJob.stage === 'pickup' ? this.sideJob.pickup : this.sideJob.target;
-      const d = Math.hypot(world.playerPos.x - target.x, world.playerPos.z - target.z);
-      if (d <= 5) {
-        if (this.sideJob.stage === 'pickup') {
-          this.sideJob.stage = 'deliver';
-          this.sideJob.text = 'Deliver the package';
-          this.beacon.position.set(this.sideJob.target.x, 0, this.sideJob.target.z);
-          this.hooks.toast('Package collected. Deliver it!', 4);
-          this.refreshObjective();
-        } else {
-          this.hooks.cash(this.sideJob.reward);
-          this.hooks.jingle();
-          this.hooks.toast(`Side Job complete — $${this.sideJob.reward}`, 4);
-          this.sideJob = null;
-          this.beacon.visible = false;
-          this.refreshObjective();
-        }
-      }
-      return;
-    }
-    if (!this.active) return;
-    const step = this.currentStep();
+    if (!this.current || S.mode !== 'playing') return;
+    const c = this.current;
+    const step = c.def.steps[c.stepIndex];
     if (!step) return;
-    const px = world.playerPos.x;
-    const pz = world.playerPos.z;
-    if (step.timer) {
-      this.stepTimer += dt;
-      if (this.stepTimer > step.timer) {
-        this.hooks.toast('Too slow — the job fell through.', 4);
-        this.hooks.fail();
-        this.stepTimer = 0;
-        this.beginMissionStepRetry();
-        return;
+    const p = S.player;
+    const distTo = (pos) => Math.hypot(pos.x - p.pos.x, pos.z - p.pos.z);
+
+    if (step.type === 'car') {
+      if (p.driving) this._advanceStep();
+    } else if (step.type === 'goto') {
+      if (distTo(step.pos) < 6) this._advanceStep();
+      else if (S.hud) S.hud.setObjective(`${step.text} — ${Math.round(distTo(step.pos))}m`);
+    } else if (step.type === 'survive') {
+      c.timer -= dt;
+      if (S.hud) S.hud.setObjective(`${step.text} — ${Math.max(0, Math.ceil(c.timer))}s`);
+      if (c.timer <= 0) this._advanceStep();
+    } else if (step.type === 'collect') {
+      // Spawn the gunmen once the player nears the second drop.
+      if (!c.enemiesSpawned && distTo(step.positions[1]) < 30) {
+        c.enemiesSpawned = true;
+        new Enemy(step.positions[1].x + 4, step.positions[1].z + 4);
+        new Enemy(step.positions[1].x - 4, step.positions[1].z - 4);
+        if (S.hud) S.hud.showToast('Ambush! The Broker\'s rivals are here.');
+      }
+      step.positions.forEach((pos, i) => {
+        if (c.collected.has(i)) return;
+        if (distTo(pos) < 4) {
+          c.collected.add(i);
+          const drop = c.drops[i];
+          if (drop) {
+            S.scene.remove(drop.mesh);
+            drop.mesh = null;
+          }
+          if (S.sounds) S.sounds.pickup();
+          if (S.hud) S.hud.showToast(`Cash drop ${c.collected.size}/3 collected`);
+          this._updateCollectMarker();
+        }
+      });
+      if (c.collected.size === step.positions.length) this._advanceStep();
+    } else if (step.type === 'stealSports') {
+      if (p.driving && p.car && p.car.type === 'sports') {
+        if (S.police) S.police.addWanted(3);
+        this._advanceStep();
       }
     }
-    switch (step.type) {
-      case 'steal':
-        if (world.driving) this.completeStep(world);
-        break;
-      case 'goto':
-      case 'drive': {
-        if (step.type === 'drive' && !world.driving) break;
-        const t = this.targetPos(step.target);
-        if (Math.hypot(px - t.x, pz - t.z) <= step.radius) this.completeStep(world);
-        break;
-      }
-      case 'collect': {
-        const t = this.targetPos(step.target);
-        if (Math.hypot(px - t.x, pz - t.z) <= step.radius) {
-          const crate = this.crates.find((c) => c.name === step.target);
-          if (crate && !crate.taken) {
-            crate.taken = true;
-            this.scene.remove(crate.mesh);
-            this.hooks.toast(`Crate secured (${this.stepIndex + 1} of 3)`, 3);
-            this.hooks.pickup();
-          }
-          this.completeStep(world);
-        }
-        break;
-      }
-      case 'grab': {
-        const t = this.targetPos(step.target);
-        if (Math.hypot(px - t.x, pz - t.z) <= step.radius) {
-          this.holdTimer += dt;
-          if (this.holdTimer >= (step.hold || 3)) {
-            this.hooks.wanted(3);
-            this.hooks.toast('Cash grabbed! The alarm is ringing — run!', 4);
-            this.completeStep(world);
-          }
-        } else {
-          this.holdTimer = 0;
-        }
-        break;
-      }
-      case 'escape':
-        if (world.wanted === 0) this.completeStep(world);
-        break;
-      default:
-        break;
+    // Timed missions (The Courier): running out of time fails the mission.
+    if (c.def.timed) {
+      c.timer = (c.timer || c.def.timed) - dt;
+      if (S.hud) S.hud.setObjective(`${step.text} — ${Math.max(0, Math.ceil(c.timer))}s left`);
+      if (c.timer <= 0) this._failMission('Out of time');
+    }
+    // Marker animation.
+    if (this.marker.visible) {
+      this.markerDiamond.rotation.y += dt * 2.4;
+      this.markerDiamond.position.y = 10 + Math.sin(S.time * 2.2) * 0.8;
     }
   }
 
-  beginMissionStepRetry() {
+  _updateCourier(dt) {
+    if (this.sideJob) {
+      const p = S.player;
+      const target = this.sideJob.phase === 'pickup' ? this.sideJob.pickup : this.sideJob.deliver;
+      const d = Math.hypot(target.x - p.pos.x, target.z - p.pos.z);
+      if (S.hud) S.hud.setObjective(this.sideJob.phase === 'pickup' ? `Courier: pick up the parcel — ${Math.round(d)}m` : `Courier: deliver the parcel — ${Math.round(d)}m`);
+      if (d < 6) {
+        if (this.sideJob.phase === 'pickup') {
+          this.sideJob.phase = 'deliver';
+          this._setMarker(this.sideJob.deliver.x, this.sideJob.deliver.z);
+          if (S.sounds) S.sounds.pickup();
+          if (S.hud) S.hud.showToast('Parcel picked up — deliver it!');
+        } else {
+          S.money += this.sideJob.reward;
+          if (S.hud) {
+            S.hud.showToast(`Courier done  +${moneyFmt(this.sideJob.reward)}`);
+            S.hud.setObjective('');
+          }
+          if (S.sounds) S.sounds.missionDone();
+          this.sideJob = null;
+          this.sideCooldown = 25;
+          this._hideMarker();
+        }
+      }
+      return;
+    }
+    this.sideCooldown -= dt;
+    if (this.sideCooldown > 0) return;
+    // Offer a new courier job at two random road intersections.
+    const rnd = () => {
+      const line = CITY.LINES[Math.floor(Math.random() * CITY.LINES.length)];
+      const other = CITY.LINES[Math.floor(Math.random() * CITY.LINES.length)];
+      return { x: line, z: other };
+    };
+    const pickup = rnd();
+    let deliver = rnd();
+    while (Math.hypot(deliver.x - pickup.x, deliver.z - pickup.z) < 120) deliver = rnd();
+    this.sideJob = { phase: 'pickup', pickup, deliver, reward: randInt(Math.random, 150, 300) };
+    this._setMarker(pickup.x, pickup.z);
+    if (S.hud) S.hud.showToast(`Courier job available — ${moneyFmt(this.sideJob.reward)}`);
+  }
+
+  /** Player died: lose some cash, respawn at the plaza, restart the mission. */
+  onWasted() {
+    if (S.mode !== 'playing') return;
+    S.mode = 'wasted';
+    S.money = Math.max(0, S.money - 200);
+    if (S.sounds) S.sounds.busted();
+    if (S.hud) S.hud.showOverlay('wasted');
+  }
+
+  /** Player arrested: bail money, respawn, restart the mission. */
+  onBusted() {
+    if (S.mode !== 'playing') return;
+    S.mode = 'busted';
+    S.money = Math.max(0, S.money - 300);
+    if (S.police) S.police.clearWanted();
+    if (S.sounds) S.sounds.busted();
+    if (S.hud) S.hud.showOverlay('busted');
+  }
+
+  /** Respawn after WASTED / BUSTED: plaza, full health, mission restarts. */
+  respawn() {
+    const p = S.player;
+    if (p.driving) p.exitCar();
+    p.pos.x = -28;
+    p.pos.z = -60;
+    p.pos.y = 0;
+    p.vy = 0;
+    S.health = 100;
+    S.mode = 'playing';
+    if (S.hud) S.hud.showOverlay(null);
     // Restart the current mission from its first step.
-    this.stepIndex = 0;
-    this.stepTimer = 0;
-    this.holdTimer = 0;
-    this.refreshObjective();
-    this.updateBeacon();
+    if (this.current) {
+      const index = this.defs.indexOf(this.current.def);
+      for (const d of this.current.drops) S.scene.remove(d.mesh);
+      this.current = null;
+      this._hideMarker();
+      this._retryIndex = index;
+      this.nextStartAt = S.time + 1.5;
+    }
   }
 }

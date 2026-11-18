@@ -1,156 +1,286 @@
-// Solmar City — the wanted system and the Solmar Police Department.
-// Crimes raise the star level; police cruisers spawn on the road grid, chase
-// and ram the player, and bust Rex when they corner him on foot. Stay out of
-// sight and the heat cools off.
-import * as THREE from 'three';
-import { clamp, dampAngle } from './util.js';
+// The wanted system and the police: stars 0-5, police cars that spawn on a road
+// near the player, navigate the road grid toward them (Manhattan turns at
+// intersections), then chase directly, ram and arrest when they are cornered
+// and slow. Stars decay when the player stays clean and out of sight.
+import * as THREE from '../vendor/three.module.min.js';
+import { S } from './state.js';
 import { CITY } from './city.js';
-import { makeCarMesh } from './vehicles.js';
+import { angleToward, circleVsBox, clamp, rand } from './util.js';
+import { Car } from './vehicles.js';
 
-export class PoliceSystem {
-  constructor(scene, city) {
-    this.scene = scene;
-    this.city = city;
-    this.wanted = 0;
-    this.heatTimer = 0;      // seconds since the last crime
-    this.decayTimer = 0;     // counts down to losing a star
-    this.bustedTimer = 0;    // how long a cruiser has been on top of Rex
-    this.cruisers = [];
-    this.spawnTimer = 0;
-    this.flashPhase = 0;
+/** Heading for driving along an axis in a direction. */
+function headingFor(axis, dir) {
+  if (axis === 'x') return dir > 0 ? 0 : Math.PI;
+  return dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+}
+
+export class Police {
+  constructor() {
+    this.units = []; // active police Cars
+    this.arrestTimer = 0;
+    this.decayTimer = 0;
+    this.flashTimer = 0;
+    this.ramCooldown = 0;
   }
 
-  addWanted(n, reason) {
-    const before = this.wanted;
-    this.wanted = clamp(this.wanted + n, 0, 5);
-    this.heatTimer = 0;
-    this.decayTimer = 14;
-    return { before, after: this.wanted, reason };
-  }
-
-  setWanted(n) {
-    this.wanted = clamp(n, 0, 5);
-    this.heatTimer = 0;
-    this.decayTimer = 14;
+  /** Raise the wanted level (clamped 0..5). */
+  addWanted(n) {
+    if (n <= 0) return;
+    S.wanted = clamp(S.wanted + n, 0, 5);
+    S.lastCrimeAt = S.time;
+    this.decayTimer = 0;
+    if (S.hud) S.hud.showToast(`Wanted level ${'★'.repeat(S.wanted)}`);
   }
 
   clearWanted() {
-    this.wanted = 0;
-    this.bustedTimer = 0;
-    this.removeCruisers();
+    S.wanted = 0;
+    this.arrestTimer = 0;
+    this._despawnAll();
   }
 
-  removeCruisers() {
-    for (const c of this.cruisers) this.scene.remove(c.mesh);
-    this.cruisers = [];
-  }
-
-  wantedCount() {
-    return this.wanted;
-  }
-
-  _spawnCruiser(playerPos) {
-    const mesh = makeCarMesh(0xf2f2f2, 'police');
-    // A black-and-white cruiser: dark doors.
-    const doorMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-    const door = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.3, 1.6), doorMat);
-    door.position.set(0, 0.62, 0.2);
-    mesh.add(door);
-    this.scene.add(mesh);
-    // Spawn on a road 55-85 units away from the player.
-    let x = playerPos.x, z = playerPos.z;
-    for (let tries = 0; tries < 12; tries++) {
-      const road = -CITY.half + Math.floor(Math.random() * (CITY.blocks + 1)) * CITY.pitch;
-      const along = (Math.random() - 0.5) * CITY.half * 1.7;
-      if (Math.random() < 0.5) { x = along; z = road; } else { x = road; z = along; }
-      const d = Math.hypot(x - playerPos.x, z - playerPos.z);
-      if (d > 55 && d < 95) break;
+  _despawnAll() {
+    for (const u of this.units) {
+      const i = S.cars.indexOf(u);
+      if (i >= 0) S.cars.splice(i, 1);
+      u.dispose();
     }
-    const cruiser = {
-      mesh, pos: new THREE.Vector3(x, 0, z),
-      heading: Math.atan2(playerPos.x - x, playerPos.z - z),
-      speed: 0, health: 100,
-    };
-    this.cruisers.push(cruiser);
-    return cruiser;
+    this.units = [];
   }
 
-  update(dt, player, playerCar, audio) {
-    this.heatTimer += dt;
-    this.flashPhase += dt * 6;
-    // Cool off: lose a star after 14 quiet seconds, faster when hidden.
-    if (this.wanted > 0) {
-      this.decayTimer -= dt;
-      if (this.decayTimer <= 0) {
-        this.wanted--;
-        this.decayTimer = this.wanted > 0 ? 14 : 0;
+  /** Spawn a unit on a road near the player, already heading toward them. */
+  _spawnUnit() {
+    const p = S.player.pos;
+    const axis = Math.random() > 0.5 ? 'x' : 'z';
+    const cross = axis === 'x' ? p.z : p.x;
+    const near = CITY.LINES.filter((l) => Math.abs(l - cross) <= 140);
+    const line = near.length > 0 ? near[Math.floor(Math.random() * near.length)] : CITY.LINES[Math.floor(Math.random() * CITY.LINES.length)];
+    const alongPlayer = axis === 'x' ? p.x : p.z;
+    let along = alongPlayer + (Math.random() > 0.5 ? 1 : -1) * (70 + Math.random() * 60);
+    along = clamp(along, -215, 215);
+    const dir = along < alongPlayer ? 1 : -1;
+    const lane = dir > 0 ? 3 : -3;
+    const x = axis === 'x' ? along : line + lane;
+    const z = axis === 'x' ? line + lane : along;
+    const car = new Car('sedan', x, z, headingFor(axis, dir), { police: true, seed: 900 + this.units.length });
+    car.def = { ...car.def, maxSpeed: 36, accel: 18 };
+    car.roadAxis = axis;
+    car.roadLine = line;
+    car.roadDir = dir;
+    car.mode = 'road';
+    car.lastTurnKey = '';
+    this.units.push(car);
+    S.cars.push(car);
+    if (S.sounds) S.sounds.horn();
+  }
+
+  /** Steer a car directly toward a point (used for the chase and road-seeking). */
+  _steerToward(u, tx, tz, dt, throttle = 1) {
+    const dx = tx - u.pos.x;
+    const dz = tz - u.pos.z;
+    const wantHeading = Math.atan2(-dz, dx);
+    let d = (wantHeading - u.heading) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    u.drive(dt, throttle, clamp(d * 1.6, -1, 1), false);
+  }
+
+  /** At an intersection, pick the road that gets closest to the player. */
+  _chooseTurn(u, crossingLine, p) {
+    const axis = u.roadAxis;
+    const ix = axis === 'x' ? crossingLine : u.roadLine;
+    const iz = axis === 'x' ? u.roadLine : crossingLine;
+    const dir = u.roadDir;
+    const cands = [
+      { axis, dir, px: ix + (axis === 'x' ? dir * 56 : 0), pz: iz + (axis === 'z' ? dir * 56 : 0) },
+      { axis, dir: -dir, px: ix - (axis === 'x' ? dir * 56 : 0), pz: iz - (axis === 'z' ? dir * 56 : 0) },
+    ];
+    for (const nd of [1, -1]) {
+      const nAxis = axis === 'x' ? 'z' : 'x';
+      cands.push({ axis: nAxis, dir: nd, px: ix + (nAxis === 'x' ? nd * 56 : 0), pz: iz + (nAxis === 'z' ? nd * 56 : 0) });
+    }
+    let best = null;
+    let bestD = Infinity;
+    for (const c of cands) {
+      // Candidate positions are road points; the outermost roads are at ±224.
+      if (c.px < -224 || c.px > 224 || c.pz < -224 || c.pz > 224) continue;
+      const d = Math.abs(c.px - p.x) + Math.abs(c.pz - p.z);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
       }
     }
-    const targetPos = playerCar ? playerCar.pos : player.pos;
-    const want = this.wanted > 0 ? Math.min(this.wanted, 4) : 0;
-    this.spawnTimer -= dt;
-    if (this.cruisers.length < want && this.spawnTimer <= 0) {
-      this._spawnCruiser(targetPos);
-      this.spawnTimer = 1.2;
+    if (!best) return;
+    u.roadAxis = best.axis;
+    u.roadDir = best.dir;
+    u.roadLine = best.axis === 'x' ? iz : ix;
+    // Snap onto the new road through the intersection.
+    if (best.axis === 'x') {
+      u.pos.x = ix;
+      u.pos.z = u.roadLine + (best.dir > 0 ? 3 : -3);
+    } else {
+      u.pos.z = iz;
+      u.pos.x = u.roadLine + (best.dir > 0 ? 3 : -3);
     }
-    if (this.cruisers.length > want) {
-      // Too many cruisers: remove the farthest one.
-      let far = null, farD = -1;
-      for (const c of this.cruisers) {
-        const d = Math.hypot(c.pos.x - targetPos.x, c.pos.z - targetPos.z);
-        if (d > farD) { farD = d; far = c; }
-      }
-      if (far) {
-        this.scene.remove(far.mesh);
-        this.cruisers.splice(this.cruisers.indexOf(far), 1);
+    u.heading = headingFor(best.axis, best.dir);
+    u.syncMesh(0);
+  }
+
+  _updateRoadUnit(u, dt, p) {
+    const targetSpeed = 30;
+    const throttle = u.speed < targetSpeed ? 1 : 0;
+    u.drive(dt, throttle, 0, false);
+    // Stay glued to the lane.
+    if (u.roadAxis === 'x') u.pos.z = u.roadLine + (u.roadDir > 0 ? 3 : -3);
+    else u.pos.x = u.roadLine + (u.roadDir > 0 ? 3 : -3);
+    // Intersection: choose the next road.
+    const along = u.roadAxis === 'x' ? u.pos.x : u.pos.z;
+    const nearest = CITY.LINES.reduce((best, l) => (Math.abs(l - along) < Math.abs(best - along) ? l : best), CITY.LINES[0]);
+    const key = `${u.roadAxis}:${nearest}`;
+    if (Math.abs(along - nearest) < 2.5 && u.lastTurnKey !== key) {
+      u.lastTurnKey = key;
+      this._chooseTurn(u, nearest, p);
+    }
+    // Safety: never leave the city.
+    u.pos.x = clamp(u.pos.x, -226, 226);
+    u.pos.z = clamp(u.pos.z, -226, 226);
+  }
+
+  _updateSeekUnit(u, dt, p) {
+    // Drive toward the nearest road, then join it.
+    const nearestX = CITY.LINES.reduce((best, l) => (Math.abs(l - u.pos.x) < Math.abs(best - u.pos.x) ? l : best), CITY.LINES[0]);
+    const nearestZ = CITY.LINES.reduce((best, l) => (Math.abs(l - u.pos.z) < Math.abs(best - u.pos.z) ? l : best), CITY.LINES[0]);
+    const dx = Math.abs(nearestX - u.pos.x);
+    const dz = Math.abs(nearestZ - u.pos.z);
+    let tx;
+    let tz;
+    let axis;
+    let line;
+    if (dx <= dz) {
+      tx = nearestX;
+      tz = u.pos.z;
+      axis = 'z';
+      line = nearestX;
+    } else {
+      tx = u.pos.x;
+      tz = nearestZ;
+      axis = 'x';
+      line = nearestZ;
+    }
+    this._steerToward(u, tx, tz, dt, 1);
+    u.pos.x = clamp(u.pos.x, -228, 228);
+    u.pos.z = clamp(u.pos.z, -228, 228);
+    for (const box of S.colliders) {
+      if (circleVsBox(u.pos, u.radius, box)) u.speed *= 0.4;
+    }
+    const dRoad = Math.hypot(tx - u.pos.x, tz - u.pos.z);
+    if (dRoad < 4) {
+      u.mode = 'road';
+      u.roadAxis = axis;
+      u.roadLine = line;
+      const alongPlayer = axis === 'x' ? p.x : p.z;
+      const along = axis === 'x' ? u.pos.x : u.pos.z;
+      u.roadDir = along < alongPlayer ? 1 : -1;
+      u.heading = headingFor(axis, u.roadDir);
+    }
+  }
+
+  update(dt) {
+    if (S.mode !== 'playing') {
+      if (S.sounds) S.sounds.siren(false, dt);
+      return;
+    }
+    const p = S.player;
+    if (!p) return;
+
+    // Keep the number of units in step with the wanted level (max 4).
+    const want = Math.min(S.wanted, 4);
+    while (this.units.length < want) this._spawnUnit();
+    while (this.units.length > want) {
+      const u = this.units.pop();
+      const i = S.cars.indexOf(u);
+      if (i >= 0) S.cars.splice(i, 1);
+      u.dispose();
+    }
+
+    // Wanted decay: clean for a while and out of sight, stars fall one by one.
+    if (S.wanted > 0 && S.time - S.lastCrimeAt > 20) {
+      const nearest = this.units.reduce((m, u) => Math.min(m, Math.hypot(u.pos.x - p.pos.x, u.pos.z - p.pos.z)), Infinity);
+      if (nearest > 45) {
+        this.decayTimer += dt;
+        if (this.decayTimer > 12) {
+          this.decayTimer = 0;
+          S.wanted = Math.max(0, S.wanted - 1);
+          if (S.hud) S.hud.showToast(`Heat falling — ${S.wanted} star${S.wanted === 1 ? '' : 's'}`);
+        }
+      } else {
+        this.decayTimer = 0;
       }
     }
-    // Chase behaviour: steer toward the player, ram on contact.
-    let busted = false;
-    let closest = 999;
-    for (const c of this.cruisers) {
-      const dx = targetPos.x - c.pos.x;
-      const dz = targetPos.z - c.pos.z;
+
+    // Flash the light bars and run the siren while any unit is active.
+    this.flashTimer += dt;
+    const flash = Math.sin(this.flashTimer * 10) > 0;
+    for (const u of this.units) {
+      if (u.group.userData.lightRed) u.group.userData.lightRed.visible = flash;
+      if (u.group.userData.lightBlue) u.group.userData.lightBlue.visible = !flash;
+    }
+    if (S.sounds) S.sounds.siren(this.units.length > 0, dt);
+
+    // Chase behaviour.
+    const playerSpeed = p.driving ? Math.abs(p.car.speed) : Math.hypot(p.vel.x, p.vel.z);
+    let arresting = false;
+    this.ramCooldown = Math.max(0, this.ramCooldown - dt);
+    for (const u of this.units) {
+      const dx = p.pos.x - u.pos.x;
+      const dz = p.pos.z - u.pos.z;
       const dist = Math.hypot(dx, dz);
-      closest = Math.min(closest, dist);
-      const wantHeading = Math.atan2(dx, dz);
-      c.heading = dampAngle(c.heading, wantHeading, 2.2, dt);
-      let targetSpeed = dist > 10 ? 30 + this.wanted * 1.5 : 16;
-      // When Rex is driving, cruisers match his pace and stay on his tail
-      // (capped, so a fast car can still pull away on a straight).
-      if (playerCar) targetSpeed = Math.min(34, Math.max(18, Math.abs(playerCar.speed) + 2));
-      // Cornering Rex on foot: the cruiser pulls up beside him and stops
-      // so the arrest can happen instead of driving past at full speed.
-      if (!playerCar && dist < 7) targetSpeed = 0;
-      c.speed += (targetSpeed - c.speed) * Math.min(1, dt * 1.5);
-      c.pos.x += Math.sin(c.heading) * c.speed * dt;
-      c.pos.z += Math.cos(c.heading) * c.speed * dt;
-      if (this.city.resolveCollision(c.pos, 1.6)) c.speed *= 0.5;
-      c.mesh.position.copy(c.pos);
-      c.mesh.rotation.y = c.heading;
-      // Light bar strobe.
-      const bar = c.mesh.userData.lightBar;
-      if (bar) {
-        const on = Math.sin(this.flashPhase) > 0;
-        bar.red.material.emissiveIntensity = on ? 2.2 : 0.2;
-        bar.blue.material.emissiveIntensity = on ? 0.2 : 2.2;
+
+      if (dist < 25) u.mode = 'chase';
+      else if (u.mode === 'chase' && dist > 55) u.mode = 'seek';
+
+      if (u.mode === 'road') this._updateRoadUnit(u, dt, p.pos);
+      else if (u.mode === 'seek') this._updateSeekUnit(u, dt, p.pos);
+      else {
+        // Direct chase: steer at the player, buildings push back.
+        this._steerToward(u, p.pos.x, p.pos.z, dt, dist > 6 ? 1 : 0.4);
+        for (const box of S.colliders) {
+          if (circleVsBox(u.pos, u.radius, box)) u.speed *= 0.4;
+        }
+        u.pos.x = clamp(u.pos.x, -228, 228);
+        u.pos.z = clamp(u.pos.z, -228, 228);
       }
-      // Ram the player's car.
-      if (playerCar && dist < 3.2) {
-        playerCar.health -= 14 * dt;
-        playerCar.speed *= 1 - Math.min(1, dt * 1.5);
-        const push = 3.2 - dist;
-        playerCar.pos.x += (playerCar.pos.x - c.pos.x) / (dist || 1) * push * 0.5;
-        playerCar.pos.z += (playerCar.pos.z - c.pos.z) / (dist || 1) * push * 0.5;
+
+      // Ram: shove the player's car (or hurt them on foot) on contact.
+      if (dist < u.radius + 2.2 && this.ramCooldown <= 0) {
+        this.ramCooldown = 0.8;
+        const nx = dx / (dist || 1);
+        const nz = dz / (dist || 1);
+        if (p.driving && p.car) {
+          p.car.pos.x += nx * 2.2;
+          p.car.pos.z += nz * 2.2;
+          p.car.speed *= 0.7;
+          p.damage(4, 'ram');
+        } else {
+          p.damage(8, 'ram');
+          p.pos.x += nx * 1.5;
+          p.pos.z += nz * 1.5;
+        }
+        if (S.sounds) S.sounds.punch();
       }
-      // Corner Rex on foot: busted after 2 seconds pressed against a cruiser.
-      if (!playerCar && dist < 3.4 && c.speed < 6) {
-        this.bustedTimer += dt;
-        if (this.bustedTimer > 2) busted = true;
-      }
+
+      // Arrest: cornered and slow.
+      if (dist < 5 && playerSpeed < 1.5) arresting = true;
     }
-    if (closest > 6) this.bustedTimer = Math.max(0, this.bustedTimer - dt * 2);
-    if (audio) audio.updateSiren(dt, this.wanted > 0);
-    return { busted, closest };
+    if (arresting && S.wanted > 0) {
+      this.arrestTimer += dt;
+      if (S.hud) S.hud.showToast(`Police closing in… ${(3 - this.arrestTimer).toFixed(0)}s — MOVE!`);
+      if (this.arrestTimer > 3) {
+        this.arrestTimer = 0;
+        if (S.missions) S.missions.onBusted();
+        else if (window.__game) window.__game.busted();
+      }
+    } else {
+      this.arrestTimer = Math.max(0, this.arrestTimer - dt * 2);
+    }
   }
 }

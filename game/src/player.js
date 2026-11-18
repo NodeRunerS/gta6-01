@@ -1,185 +1,288 @@
-// Solmar City — the player on foot: Rex Dalton, a low-poly third-person
-// character with camera-relative movement, sprint, jump, punching and a
-// pistol with hitscan shooting, muzzle flash and tracers.
-import * as THREE from 'three';
-import { clamp, dampAngle } from './util.js';
+// The player: on-foot movement (WASD, Shift run, Space jump, mouse-orbit camera),
+// driving (W/S throttle, A/D steer, Space handbrake, E enter/exit car), and
+// combat (F punch, mouse pistol with R reload). Health, wanted and damage live here.
+import * as THREE from '../vendor/three.module.min.js';
+import { S } from './state.js';
+import { circleVsBox, clamp, mulberry32 } from './util.js';
 import { makePersonMesh } from './people.js';
 
 export class Player {
-  constructor(scene, city, x, z) {
-    this.scene = scene;
-    this.city = city;
-    // Rex: navy jacket, jeans, cap — easy to spot in a crowd.
-    this.mesh = makePersonMesh(0x1d3557, 0x2c3e50, 0xf1c27d);
-    const u = this.mesh.userData;
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.5), new THREE.MeshLambertMaterial({ color: 0xc0392b }));
-    cap.position.y = 1.9;
-    this.mesh.add(cap);
-    this.mesh.position.set(x, 0, z);
-    scene.add(this.mesh);
-    this.pos = new THREE.Vector3(x, 0, z);
-    this.heading = 0;
-    this.speed = 0;
-    this.velY = 0;
-    this.grounded = true;
-    this.health = 100;
-    this.weapon = 'pistol';
-    this.ammo = 12;
-    this.reloading = false;
+  constructor(x, z) {
+    this.group = makePersonMesh(0x2a6ac2);
+    this.group.position.set(x, 0, z);
+    this.pos = { x, y: 0, z };
+    this.vel = { x: 0, z: 0 };
+    this.vy = 0;
+    this.onGround = true;
+    this.heading = 0; // facing, radians (0 = +X)
+    this.camYaw = Math.PI / 2;
+    this.camPitch = 0.32;
+    this.driving = false;
+    this.car = null;
+    this.shotsFiredAt = -999;
+    this.damageCooldown = 0;
     this.reloadTimer = 0;
-    this.shotCooldown = 0;
-    this.walkPhase = 0;
-    this.raycaster = new THREE.Raycaster();
-    this.raycaster.far = 90;
-    // Muzzle flash light + tracer line, reused every shot.
-    this.flash = new THREE.PointLight(0xffd27a, 0, 14);
-    this.scene.add(this.flash);
-    const tracerGeo = new THREE.BufferGeometry();
-    tracerGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-    this.tracer = new THREE.Line(tracerGeo, new THREE.LineBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0 }));
-    this.scene.add(this.tracer);
-    this.tracerLife = 0;
+    this.punchTimer = 0;
+    this.enterTimer = 0; // brief animation when stealing a car
+    S.scene.add(this.group);
+    S.player = this;
   }
 
-  reset(x, z, health) {
-    this.pos.set(x, 0, z);
-    this.heading = 0;
-    this.speed = 0;
-    this.velY = 0;
-    this.health = health == null ? 100 : health;
-    this.ammo = 12;
-    this.reloading = false;
-    this.mesh.position.copy(this.pos);
+  get speed() {
+    if (this.driving && this.car) return Math.abs(this.car.speed);
+    return Math.hypot(this.vel.x, this.vel.z);
   }
 
-  update(dt, input, camYaw) {
-    this.shotCooldown = Math.max(0, this.shotCooldown - dt);
-    if (this.reloading) {
-      this.reloadTimer -= dt;
-      if (this.reloadTimer <= 0) {
-        this.reloading = false;
-        this.ammo = 12;
+  damage(n, _cause) {
+    if (this.damageCooldown > 0 || S.mode !== 'playing') return;
+    this.damageCooldown = 0.5;
+    S.health = Math.max(0, S.health - n);
+    if (S.hud) S.hud.flashDamage();
+    if (S.health <= 0) {
+      if (S.missions) S.missions.onWasted();
+      else if (window.__game) window.__game.wasted();
+    }
+  }
+
+  /** Nearest stealable parked car within reach, or null. */
+  nearestParkedCar() {
+    let best = null;
+    let bestD = 4.6;
+    for (const c of S.cars) {
+      if (!c.parked) continue;
+      const d = Math.hypot(c.pos.x - this.pos.x, c.pos.z - this.pos.z);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
       }
     }
-    // Camera-relative wish direction.
-    let ix = 0, iz = 0;
-    if (input.up) { ix -= Math.sin(camYaw); iz -= Math.cos(camYaw); }
-    if (input.down) { ix += Math.sin(camYaw); iz += Math.cos(camYaw); }
-    if (input.left) { ix -= Math.cos(camYaw); iz += Math.sin(camYaw); }
-    if (input.right) { ix += Math.cos(camYaw); iz -= Math.sin(camYaw); }
-    const len = Math.hypot(ix, iz);
-    const targetSpeed = len > 0 ? (input.run ? 8 : 4.4) : 0;
-    if (len > 0) {
-      ix /= len; iz /= len;
-      this.heading = dampAngle(this.heading, Math.atan2(ix, iz), 12, dt);
+    return best;
+  }
+
+  enterCar(car) {
+    this.driving = true;
+    this.car = car;
+    car.parked = false;
+    car.speed = 0;
+    this.group.visible = false;
+    this.enterTimer = 0.4;
+    this.pos.x = car.pos.x;
+    this.pos.z = car.pos.z;
+    this.heading = car.heading;
+    if (S.police) S.police.addWanted(1);
+    if (S.hud) S.hud.showToast('Car stolen! The cops noticed.');
+    if (S.sounds) S.sounds.horn();
+  }
+
+  exitCar() {
+    if (!this.car) return;
+    const car = this.car;
+    this.driving = false;
+    this.car = null;
+    // Step out on the driver's side.
+    const sx = car.pos.x + Math.sin(car.heading) * 2.2;
+    const sz = car.pos.z + Math.cos(car.heading) * 2.2;
+    this.pos.x = clamp(sx, -222, 222);
+    this.pos.z = clamp(sz, -222, 222);
+    this.pos.y = 0;
+    this.group.visible = true;
+    this.group.position.set(this.pos.x, 0, this.pos.z);
+  }
+
+  shoot() {
+    if (this.reloadTimer > 0 || S.mode !== 'playing') return;
+    if (S.ammo <= 0) {
+      if (S.sounds) S.sounds.punch();
+      this.startReload();
+      return;
     }
-    this.speed += (targetSpeed - this.speed) * Math.min(1, dt * 10);
-    // Move one axis at a time so Rex slides along building walls instead
-    // of stopping dead when he clips a corner.
-    if (len > 0) {
-      this.pos.x += Math.sin(this.heading) * this.speed * dt;
-      this.pos.x = clamp(this.pos.x, -170, 170);
-      this.city.resolveCollision(this.pos, 0.7);
-      this.pos.z += Math.cos(this.heading) * this.speed * dt;
-      this.pos.z = clamp(this.pos.z, -170, 198);
-      this.city.resolveCollision(this.pos, 0.7);
-    }
-    // Jump and gravity.
-    if (input.jump && this.grounded) {
-      this.velY = 5.2;
-      this.grounded = false;
-    }
-    if (!this.grounded) {
-      this.velY -= 14 * dt;
-      this.pos.y += this.velY * dt;
-      if (this.pos.y <= 0) {
-        this.pos.y = 0;
-        this.velY = 0;
-        this.grounded = true;
+    S.ammo -= 1;
+    this.shotsFiredAt = S.time;
+    if (S.sounds) S.sounds.shot();
+    if (S.police) S.police.addWanted(0); // shooting near police is handled by proximity below
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(0, 0), S.camera);
+    ray.far = 90;
+    const targets = [];
+    for (const e of S.enemies) if (!e.dead) targets.push(e.group);
+    for (const w of S.pedestrians) if (w.state !== 'down') targets.push(w.group);
+    const hits = ray.intersectObjects(targets, true);
+    if (hits.length > 0) {
+      let obj = hits[0].object;
+      while (obj && !obj.userData.person) obj = obj.parent;
+      const person = obj ? obj.userData.person : null;
+      if (person) {
+        if (person.takeDamage) {
+          person.takeDamage(34);
+        } else {
+          person.knockDown();
+          if (S.police) S.police.addWanted(1);
+        }
       }
     }
-    // Walk cycle.
-    this.walkPhase += dt * (4 + this.speed * 1.4);
-    const swing = Math.sin(this.walkPhase) * clamp(this.speed / 8, 0, 1) * 0.7;
-    const u = this.mesh.userData;
-    u.legL.rotation.x = swing;
-    u.legR.rotation.x = -swing;
-    u.armL.rotation.x = -swing * 0.8;
-    u.armR.rotation.x = swing * 0.8;
-    this.mesh.position.copy(this.pos);
-    this.mesh.rotation.y = this.heading;
-    // Muzzle flash + tracer fade.
-    this.flash.intensity = Math.max(0, this.flash.intensity - dt * 60);
-    if (this.tracerLife > 0) {
-      this.tracerLife -= dt;
-      this.tracer.material.opacity = Math.max(0, this.tracerLife / 0.08);
+    // Firing a gun in the city draws heat when police are near.
+    if (S.police && S.police.units.length > 0) S.police.addWanted(1);
+  }
+
+  punch() {
+    if (this.punchTimer > 0 || S.mode !== 'playing') return;
+    this.punchTimer = 0.45;
+    if (S.sounds) S.sounds.punch();
+    const fx = Math.cos(this.heading);
+    const fz = -Math.sin(this.heading);
+    for (const e of [...S.enemies]) {
+      const dx = e.pos.x - this.pos.x;
+      const dz = e.pos.z - this.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 2.6 && (dx * fx + dz * fz) / (d || 1) > 0.3) {
+        e.takeDamage(30);
+        e.pos.x += (dx / (d || 1)) * 1.2;
+        e.pos.z += (dz / (d || 1)) * 1.2;
+      }
+    }
+    for (const w of S.pedestrians) {
+      if (w.state === 'down') continue;
+      const dx = w.pos.x - this.pos.x;
+      const dz = w.pos.z - this.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 2.4 && (dx * fx + dz * fz) / (d || 1) > 0.3) {
+        w.knockDown();
+        if (S.police) S.police.addWanted(1);
+      }
     }
   }
 
   startReload() {
-    if (this.weapon !== 'pistol' || this.reloading || this.ammo === 12) return false;
-    this.reloading = true;
-    this.reloadTimer = 1.1;
-    return true;
+    if (this.reloadTimer > 0 || S.ammoReserve <= 0) return;
+    this.reloadTimer = 1.2;
+    if (S.hud) S.hud.showToast('Reloading…');
   }
 
-  // Hitscan shot from the camera centre. `shootables` are meshes whose
-  // userData.shoot is { kind, ref }. Returns the hit or null.
-  fire(camera, shootables) {
-    if (this.weapon !== 'pistol' || this.shotCooldown > 0 || this.reloading) return { fired: false };
-    if (this.ammo <= 0) {
-      this.startReload();
-      return { fired: false, dry: true };
-    }
-    this.ammo--;
-    this.shotCooldown = 0.22;
-    this.raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const hits = this.raycaster.intersectObjects(shootables, true);
-    const muzzle = this.pos.clone();
-    muzzle.y += 1.35;
-    muzzle.x += Math.sin(this.heading) * 0.5;
-    muzzle.z += Math.cos(this.heading) * 0.5;
-    this.flash.position.copy(muzzle);
-    this.flash.intensity = 14;
-    const positions = this.tracer.geometry.attributes.position;
-    positions.setXYZ(0, muzzle.x, muzzle.y, muzzle.z);
-    let end = null;
-    let hit = null;
-    if (hits.length > 0) {
-      end = hits[0].point;
-      let obj = hits[0].object;
-      while (obj && !obj.userData.shoot) obj = obj.parent;
-      if (obj && obj.userData.shoot) hit = { ...obj.userData.shoot, point: end, distance: hits[0].distance };
-    } else {
-      const dir = new THREE.Vector3();
-      camera.getWorldDirection(dir);
-      end = muzzle.clone().add(dir.multiplyScalar(80));
-    }
-    positions.setXYZ(1, end.x, end.y, end.z);
-    positions.needsUpdate = true;
-    this.tracer.material.opacity = 0.9;
-    this.tracerLife = 0.08;
-    return { fired: true, hit };
-  }
-
-  // A punch: anything shootable within 2.2 m in front of Rex.
-  punch(shootables) {
-    const fx = Math.sin(this.heading);
-    const fz = Math.cos(this.heading);
-    let best = null;
-    let bestD = 2.4;
-    for (const obj of shootables) {
-      const s = obj.userData.shoot;
-      if (!s || (s.kind !== 'ped' && s.kind !== 'enemy')) continue;
-      const p = obj.position;
-      const dx = p.x - this.pos.x;
-      const dz = p.z - this.pos.z;
-      const d = Math.hypot(dx, dz);
-      if (d < bestD && (dx * fx + dz * fz) > 0) {
-        bestD = d;
-        best = s;
+  update(dt) {
+    this.damageCooldown = Math.max(0, this.damageCooldown - dt);
+    this.punchTimer = Math.max(0, this.punchTimer - dt);
+    this.enterTimer = Math.max(0, this.enterTimer - dt);
+    if (this.reloadTimer > 0) {
+      this.reloadTimer -= dt;
+      if (this.reloadTimer <= 0) {
+        const need = 12 - S.ammo;
+        const take = Math.min(need, S.ammoReserve);
+        S.ammo += take;
+        S.ammoReserve -= take;
       }
     }
-    return best;
+    const k = S.keys;
+
+    if (this.driving && this.car) {
+      const throttle = (k['KeyW'] || k['ArrowUp'] ? 1 : 0) + (k['KeyS'] || k['ArrowDown'] ? -1 : 0);
+      const steer = (k['KeyA'] || k['ArrowLeft'] ? 1 : 0) + (k['KeyD'] || k['ArrowRight'] ? -1 : 0);
+      const handbrake = !!k['Space'];
+      this.car.drive(dt, throttle, steer, handbrake);
+      // Collisions with buildings.
+      for (const box of S.colliders) {
+        if (circleVsBox(this.car.pos, this.car.radius, box)) this.car.speed *= 0.45;
+      }
+      // Collisions with other cars: push apart, damp speed.
+      for (const other of S.cars) {
+        if (other === this.car) continue;
+        const dx = this.car.pos.x - other.pos.x;
+        const dz = this.car.pos.z - other.pos.z;
+        const d = Math.hypot(dx, dz);
+        const min = this.car.radius + other.radius - 0.4;
+        if (d < min && d > 0.01) {
+          const push = (min - d) / 2;
+          const nx = dx / d;
+          const nz = dz / d;
+          this.car.pos.x += nx * push;
+          this.car.pos.z += nz * push;
+          if (!other.parked && !other.traffic) {
+            other.pos.x -= nx * push;
+            other.pos.z -= nz * push;
+          }
+          this.car.speed *= 0.75;
+          if (Math.abs(this.car.speed) > 6 && S.police) S.police.addWanted(0);
+        }
+      }
+      this.car.pos.x = clamp(this.car.pos.x, -228, 228);
+      this.car.pos.z = clamp(this.car.pos.z, -228, 228);
+      this.pos.x = this.car.pos.x;
+      this.pos.z = this.car.pos.z;
+      this.heading = this.car.heading;
+      if (S.sounds) S.sounds.engine(Math.abs(this.car.speed), true);
+      return;
+    }
+
+    // --- on foot ---
+    const run = k['ShiftLeft'] || k['ShiftRight'];
+    const speed = run ? 11 : 6;
+    // Camera-relative movement.
+    const fwdX = Math.cos(this.camYaw);
+    const fwdZ = -Math.sin(this.camYaw);
+    const rightX = -fwdZ;
+    const rightZ = fwdX;
+    let mx = 0;
+    let mz = 0;
+    if (k['KeyW'] || k['ArrowUp']) {
+      mx += fwdX;
+      mz += fwdZ;
+    }
+    if (k['KeyS'] || k['ArrowDown']) {
+      mx -= fwdX;
+      mz -= fwdZ;
+    }
+    if (k['KeyD'] || k['ArrowRight']) {
+      mx += rightX;
+      mz += rightZ;
+    }
+    if (k['KeyA'] || k['ArrowLeft']) {
+      mx -= rightX;
+      mz -= rightZ;
+    }
+    const mLen = Math.hypot(mx, mz);
+    if (mLen > 0.01) {
+      mx /= mLen;
+      mz /= mLen;
+      this.vel.x = mx * speed;
+      this.vel.z = mz * speed;
+      this.heading = Math.atan2(-mz, mx);
+    } else {
+      this.vel.x *= Math.max(0, 1 - dt * 10);
+      this.vel.z *= Math.max(0, 1 - dt * 10);
+    }
+    // Jump.
+    if (k['Space'] && this.onGround) {
+      this.vy = 8.5;
+      this.onGround = false;
+    }
+    if (!this.onGround) {
+      this.vy -= 24 * dt;
+      this.pos.y += this.vy * dt;
+      if (this.pos.y <= 0) {
+        this.pos.y = 0;
+        this.vy = 0;
+        this.onGround = true;
+      }
+    }
+    this.pos.x += this.vel.x * dt;
+    this.pos.z += this.vel.z * dt;
+    this.pos.x = clamp(this.pos.x, -222, 222);
+    this.pos.z = clamp(this.pos.z, -222, 222);
+    for (const box of S.colliders) circleVsBox(this.pos, 0.6, box);
+    // Bumping into a parked car hurts no one, just blocks.
+    for (const c of S.cars) {
+      if (c.parked || c.traffic) circleVsBox(this.pos, 0.6, { minX: c.pos.x - c.length / 2, maxX: c.pos.x + c.length / 2, minZ: c.pos.z - c.width / 2, maxZ: c.pos.z + c.width / 2 });
+    }
+    // Run over by a moving car?
+    for (const c of S.cars) {
+      if (c.parked || c === this.car) continue;
+      const d = Math.hypot(c.pos.x - this.pos.x, c.pos.z - this.pos.z);
+      if (d < 2.4 && Math.abs(c.speed) > 5) this.damage(12, 'run over');
+    }
+    this.group.position.set(this.pos.x, this.pos.y, this.pos.z);
+    this.group.rotation.y = -this.heading;
+    // Walk bob.
+    const moving = Math.hypot(this.vel.x, this.vel.z);
+    this.group.position.y = this.pos.y + (this.onGround ? Math.abs(Math.sin(S.time * 10)) * 0.05 * (moving / 6) : 0);
+    if (S.sounds) S.sounds.engine(0, false);
   }
 }
