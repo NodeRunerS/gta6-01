@@ -16,17 +16,17 @@
   .panel { background: rgba(12, 10, 16, 0.62); border: 1px solid rgba(255, 210, 61, 0.35); border-radius: 10px; backdrop-filter: blur(3px); }
 
   #top-left { position: absolute; top: 14px; left: 14px; display: flex; gap: 10px; align-items: flex-start; }
-  #minimap { width: 180px; height: 180px; border-radius: 50%; border: 3px solid rgba(255, 210, 61, 0.7); background: rgba(10, 20, 10, 0.8); box-shadow: 0 0 18px rgba(0,0,0,0.6); }
+  #minimap { width: 180px; height: 180px; border-radius: 50%; border: 3px solid #0a0a0a; outline: 2px solid rgba(255,255,255,0.4); background: rgba(8, 12, 8, 0.85); box-shadow: 0 0 18px rgba(0,0,0,0.6); }
   #stats { display: flex; flex-direction: column; gap: 6px; min-width: 170px; }
-  #money { font-size: 26px; font-weight: 800; color: #7dff8a; padding: 6px 12px; }
+  #money { font-size: 26px; font-weight: 800; color: #46d160; padding: 6px 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
   #stars { font-size: 22px; letter-spacing: 3px; color: #888; padding: 4px 12px; }
   #stars.hot { color: #ffd23d; text-shadow: 0 0 10px rgba(255, 210, 61, 0.8); }
   #health-wrap { padding: 6px 12px; }
   #health-text { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
   #health-bar { height: 10px; background: rgba(255,255,255,0.18); border-radius: 5px; overflow: hidden; }
-  #health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #37d67a, #7dff8a); border-radius: 5px; transition: width 0.2s; }
+  #health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #2fae4e, #46d160); border-radius: 5px; transition: width 0.2s; }
   #ammo { font-size: 15px; font-weight: 700; padding: 5px 12px; }
-  #clock { font-size: 15px; font-weight: 700; padding: 5px 12px; color: #ffd23d; }
+  #clock { font-size: 15px; font-weight: 700; padding: 5px 12px; color: #ffffff; }
 
   #top-right { position: absolute; top: 14px; right: 14px; text-align: right; }
   #mission-label { font-size: 14px; font-weight: 800; color: #ffd23d; padding: 6px 12px; margin-bottom: 6px; }
@@ -48,21 +48,25 @@
   #damage-flash.flash { animation: dmg 0.5s ease-out; }
   @keyframes dmg { 0% { opacity: 1; } 100% { opacity: 0; } }
 
-  /* ---------- Screens ---------- */
-  .screen { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; color: #fff; background: radial-gradient(ellipse at center, rgba(40, 20, 10, 0.82), rgba(8, 4, 2, 0.94)); }
+  /* ---------- Screens (GTA-style menus) ---------- */
+  .screen { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; color: #fff; background: radial-gradient(ellipse at center, rgba(20, 16, 12, 0.78), rgba(5, 4, 3, 0.92)); }
   .screen.show { display: flex; }
-  .screen h1 { font-size: 52px; font-weight: 900; letter-spacing: 2px; color: #ffd23d; text-shadow: 0 4px 0 #7a4a00, 0 8px 24px rgba(0,0,0,0.8); margin-bottom: 8px; }
-  .screen h2 { font-size: 30px; font-weight: 800; color: #fff; margin-bottom: 10px; }
+  /* Start screen: left-aligned GTA menu over the live city orbit. */
+  #screen-start { align-items: flex-start; justify-content: center; text-align: left; padding-left: 7vw; background: linear-gradient(90deg, rgba(4,4,6,0.92) 0%, rgba(4,4,6,0.78) 38%, rgba(4,4,6,0.35) 65%, rgba(4,4,6,0.08) 100%); }
+  .screen h1 { font-family: Impact, 'Arial Narrow', 'Helvetica Neue', sans-serif; font-size: 88px; font-weight: 900; letter-spacing: 5px; line-height: 0.95; color: #ffffff; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 6px 24px rgba(0,0,0,0.9); margin-bottom: 6px; }
+  .screen h1 .gold { color: #ffd23d; }
+  .screen h2 { font-family: Impact, 'Arial Narrow', 'Helvetica Neue', sans-serif; font-size: 56px; font-weight: 900; letter-spacing: 6px; color: #fff; margin-bottom: 10px; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 6px 24px rgba(0,0,0,0.9); }
   .screen p { font-size: 16px; color: #e8dcc8; max-width: 560px; line-height: 1.6; margin-bottom: 14px; }
-  .screen .sub { font-size: 14px; color: #ffb84d; font-weight: 700; letter-spacing: 1px; margin-bottom: 22px; }
-  .btn { pointer-events: auto; cursor: pointer; font-size: 18px; font-weight: 800; color: #1a1206; background: linear-gradient(180deg, #ffe27a, #f2b705); border: none; border-radius: 10px; padding: 14px 34px; margin: 6px; box-shadow: 0 4px 0 #7a4a00, 0 8px 20px rgba(0,0,0,0.6); }
-  .btn:hover { filter: brightness(1.08); }
-  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #7a4a00; }
-  .btn.secondary { background: linear-gradient(180deg, #e8e8e8, #b8b8b8); box-shadow: 0 4px 0 #555, 0 8px 20px rgba(0,0,0,0.6); }
-  .controls-table { font-size: 13px; color: #d8d0c0; line-height: 1.9; margin: 6px 0 18px; text-align: left; }
+  .screen .sub { font-size: 17px; color: #ffd23d; font-weight: 800; letter-spacing: 7px; margin-bottom: 26px; text-shadow: 0 2px 6px rgba(0,0,0,0.9); }
+  .menu-list { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; }
+  .btn { pointer-events: auto; cursor: pointer; display: block; width: 340px; text-align: left; font-size: 21px; font-weight: 700; letter-spacing: 1px; color: #ffffff; background: transparent; border: none; border-left: 5px solid transparent; padding: 11px 18px; margin: 2px 0; text-shadow: 0 2px 4px rgba(0,0,0,0.9); }
+  .btn:hover, .btn:focus-visible { background: rgba(255,255,255,0.14); border-left-color: #ffd23d; outline: none; }
+  .btn:active { background: rgba(255,210,61,0.25); }
+  .btn.secondary { color: #cfc8b8; }
+  .controls-table { font-size: 13px; color: #b8b0a0; line-height: 1.9; margin: 6px 0 18px; text-align: left; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
   .controls-table b { color: #ffd23d; display: inline-block; min-width: 130px; }
-  #screen-wasted h1 { color: #ff4444; text-shadow: 0 4px 0 #550000, 0 8px 24px rgba(0,0,0,0.8); }
-  #screen-busted h1 { color: #4da6ff; text-shadow: 0 4px 0 #002244, 0 8px 24px rgba(0,0,0,0.8); }
+  #screen-wasted h1, #screen-busted h1 { color: #e8e8e8; }
+  #screen-pause { background: linear-gradient(90deg, rgba(4,4,6,0.9), rgba(4,4,6,0.6) 60%, rgba(4,4,6,0.25)); align-items: flex-start; text-align: left; padding-left: 7vw; }
 </style>
 </head>
 <body>
@@ -95,11 +99,11 @@
 <div id="damage-flash"></div>
 
 <div id="screen-start" class="screen">
-  <h1>SOLMAR CITY</h1>
-  <div class="sub">STREETS OF GOLD — an original open-world crime game</div>
+  <h1>SOLMAR <span class="gold">CITY</span></h1>
+  <div class="sub">STREETS OF GOLD</div>
   <p>Sun, sea and sin in a coastal city of gold. Steal cars, outrun the law, run jobs for Mara Solis and the Broker — and get rich doing it.</p>
-  <div>
-    <button id="btn-new" class="btn">▶ &nbsp;New game</button>
+  <div class="menu-list">
+    <button id="btn-new" class="btn">New game</button>
     <button id="btn-continue" class="btn secondary">Continue</button>
   </div>
   <div class="controls-table">
@@ -111,21 +115,27 @@
 </div>
 
 <div id="screen-pause" class="screen">
-  <h2>Paused</h2>
+  <h2>PAUSED</h2>
   <p>Solmar City waits for no one — except right now.</p>
-  <button id="btn-resume" class="btn">Resume</button>
+  <div class="menu-list">
+    <button id="btn-resume" class="btn">Resume</button>
+  </div>
 </div>
 
 <div id="screen-wasted" class="screen">
   <h1>WASTED</h1>
   <p>You got taken down. The hospital patched you up — minus $200 for the trouble.</p>
-  <button id="btn-respawn-wasted" class="btn">Respawn at the plaza</button>
+  <div class="menu-list">
+    <button id="btn-respawn-wasted" class="btn">Respawn at the plaza</button>
+  </div>
 </div>
 
 <div id="screen-busted" class="screen">
   <h1>BUSTED</h1>
   <p>The Solmar PD caught you. Bail cost you $300, and the mission starts over.</p>
-  <button id="btn-respawn-busted" class="btn">Respawn at the plaza</button>
+  <div class="menu-list">
+    <button id="btn-respawn-busted" class="btn">Respawn at the plaza</button>
+  </div>
 </div>
 
 <script type="module" src="./src/main.js"></script>
