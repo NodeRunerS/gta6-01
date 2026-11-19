@@ -191,12 +191,18 @@ export function updatePolice(dt) {
       u.mesh.position.set(u.pos.x, 0, u.pos.z);
       u.mesh.rotation.y = u.heading;
     }
-    // Strobe flash on the light bar.
+    // Strobe flash on the light bar, with intense red/blue halos.
     const bar = u.mesh.userData.lightBar;
     if (bar) {
       const phase = Math.floor(S.time * 6) % 2 === 0;
       bar.children[0].material.color.setHex(phase ? 0xff2222 : 0x550000);
       bar.children[1].material.color.setHex(phase ? 0x000055 : 0x2244ff);
+      const halos = bar.userData.halos;
+      if (halos) {
+        halos[0].material.opacity = phase ? 0.9 : 0.06;
+        halos[1].material.opacity = phase ? 0.06 : 0.9;
+      }
+      u._strobePhase = phase;
     }
     // Ram the player.
     if (d < 4.5) {

@@ -101,7 +101,8 @@ export function houseTexture(seed) {
   return toTexture(c);
 }
 
-// Glowing neon sign: text with a colored halo on a dark plate.
+// Glowing neon sign: text with a strong colored halo on a dark plate.
+// Drawn twice so the core burns bright even in full daylight.
 export function signTexture(text, color, bg) {
   const [c, ctx] = makeCanvas(256, 64);
   ctx.fillStyle = bg || '#12081c';
@@ -110,12 +111,27 @@ export function signTexture(text, color, bg) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = color;
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = 30;
   ctx.fillStyle = color;
+  ctx.fillText(text, 128, 34);
   ctx.fillText(text, 128, 34);
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#ffffff';
   ctx.fillText(text, 128, 34);
+  return toTexture(c);
+}
+
+// Soft radial glow sprite texture (white core fading to transparent),
+// tinted per use via material color. Used for neon halos and lamp glows.
+export function glowTexture() {
+  const [c, ctx] = makeCanvas(128, 128);
+  const g = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.25, 'rgba(255,255,255,0.85)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0.28)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
   return toTexture(c);
 }
 

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { S } from './state.js';
 import { AudioSys } from './audio.js';
-import { buildCity, updateCranes, updateClouds } from './city.js';
+import { buildCity, updateCranes, updateClouds, updateWindowFlicker } from './city.js';
 import { buildShells, updateShells, resetShells, SHELL_TOTAL } from './collectibles.js';
 import { buildTrafficLights } from './traffic-lights.js';
 import { buildPedestrians } from './people.js';
@@ -191,6 +191,7 @@ function step(dt) {
   if (S.trafficLights) S.trafficLights.update(S.time);
   updateCranes(S.time);
   updateClouds(dt);
+  updateWindowFlicker(S.time);
   if (S.mode === 'playing') {
     updatePlayer(dt);
     updateShells(dt);
@@ -271,6 +272,44 @@ window.__game = {
       aiming: !!S.aiming,
       headlightsOn: S.headlightsOn,
       playerHeadlight: !!(S.player.vehicle && S.player.vehicle.headlight && S.player.vehicle.headlight.spot.visible),
+      // Glow state (round 12): lit-window emissive, lamp/neon halo counts,
+      // traffic-light halo strength, headlight cone strength, strobe halos,
+      // and how many cars still read as black (should be 0).
+      windowEmissive: S._glowMats && S._glowMats.length ? S._glowMats[0].emissiveIntensity : null,
+      lampHalos: S._lampHaloCount || 0,
+      neonHalos: S._neonHalos || 0,
+      trafficHaloOpacity: S._trafficHaloOpacity || 0,
+      headlightCone: S.player.vehicle && S.player.vehicle.headlight ? S.player.vehicle.headlight.cone.material.opacity : null,
+      headlightSpot: S.player.vehicle && S.player.vehicle.headlight ? S.player.vehicle.headlight.spot.intensity : null,
+      brakeGlow: S.player.vehicle && S.player.vehicle.group.userData.tlGlows ? S.player.vehicle.group.userData.tlGlows[0].material.opacity : null,
+      strobeGlow: (() => {
+        let best = 0;
+        for (const u of S.police || []) {
+          const h = u.mesh && u.mesh.userData.lightBar && u.mesh.userData.lightBar.userData.halos;
+          if (h) best = Math.max(best, h[0].material.opacity, h[1].material.opacity);
+        }
+        return best;
+      })(),
+      darkCars: (() => {
+        // NOTE: three.js stores colours in linear space; compare in sRGB
+        // via getHex() so the 0.25 threshold means what it says.
+        let dark = 0;
+        const cars = [...(S.parkedCars || []), ...(S.traffic || [])];
+        for (const c of cars) {
+          const grp = c.group || c.mesh;
+          if (!grp) continue;
+          let bad = false;
+          grp.traverse((o) => {
+            if (o.isMesh && o.material && o.material.userData && o.material.userData.bodyPaint) {
+              const hex = o.material.color.getHex();
+              const mx = Math.max((hex >> 16) & 255, (hex >> 8) & 255, hex & 255) / 255;
+              if (mx < 0.25) bad = true;
+            }
+          });
+          if (bad) dark++;
+        }
+        return dark;
+      })(),
       trafficLight: S.trafficLights ? S.trafficLights.lights[0].ns : null,
       businesses: S.ownedBusinesses,
       safehouse: S.safehouseOwned,

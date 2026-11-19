@@ -8,10 +8,16 @@ import { S, WORLD, isLand } from './state.js';
 import { mulberry32, pick, clamp } from './util.js';
 import {
   glassTexture, decoTexture, brickTexture, houseTexture,
-  signTexture, waterTexture, skyTexture,
+  signTexture, waterTexture, skyTexture, glowTexture,
 } from './facades.js';
 
 const rng = mulberry32(1986);
+// Shared radial glow sprite (white core → transparent), tinted per use.
+let glowTex = null;
+function getGlowTex() {
+  if (!glowTex) glowTex = glowTexture();
+  return glowTex;
+}
 
 function box(w, h, d, mat) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -30,6 +36,21 @@ function neonSign(scene, text, color, x, y, z, ry, w = 18) {
   m.position.set(x, y, z);
   m.rotation.y = ry;
   scene.add(m);
+  // Dazzling coloured halo behind the sign so the neon burns in daylight.
+  const halo = new THREE.Mesh(
+    new THREE.PlaneGeometry(w * 1.9, (w / 4) * 2.6),
+    new THREE.MeshBasicMaterial({
+      map: getGlowTex(), color: new THREE.Color(color), transparent: true,
+      opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false,
+    }),
+  );
+  const nx = Math.sin(ry);
+  const nz = Math.cos(ry);
+  halo.position.set(x - nx * 0.15, y, z - nz * 0.15);
+  halo.rotation.y = ry;
+  scene.add(halo);
+  if (!S._neonHalos) S._neonHalos = 0;
+  S._neonHalos++;
   return m;
 }
 
@@ -185,11 +206,12 @@ export function buildCity(scene) {
 
   function building(x, z, w, d, h, tex, tint = 0xffffff) {
     buildingRects.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
-    // One material (not a 6-material array) to keep draw calls low; the
-    // facade texture on the roof is barely visible from street level at dusk.
+    // Lit windows glow warm in daylight: high emissive so the facades shine.
     const side = new THREE.MeshLambertMaterial({
-      map: tex, color: tint, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.22,
+      map: tex, color: tint, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.75,
     });
+    if (!S._glowMats) S._glowMats = [];
+    S._glowMats.push(side);
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), side);
     m.position.set(x, h / 2, z);
     scene.add(m);
@@ -289,9 +311,19 @@ export function buildCity(scene) {
     );
     light.position.set(0, 29.5, 0);
     crane.add(light);
+    // Dazzling halo around the warning light, blinking with it.
+    const lightHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(1.6, 8, 6),
+      new THREE.MeshBasicMaterial({
+        color: 0xff2222, transparent: true, opacity: 0.7,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }),
+    );
+    lightHalo.position.set(0, 29.5, 0);
+    crane.add(lightHalo);
     crane.position.set(cx, 0, cz);
     scene.add(crane);
-    S.cranes.push({ jib, cable, hook, light, phase: idx * 2.1, rotating: idx === 1, hookY: 10 });
+    S.cranes.push({ jib, cable, hook, light, lightHalo, phase: idx * 2.1, rotating: idx === 1, hookY: 10 });
   });
   // Cargo ships in the western sea.
   for (const sz of [120, 168]) {
@@ -499,13 +531,20 @@ export function buildCity(scene) {
   lampSpots.push([30, 187.5, 0], [43, 204.5, 0], [56, 187.5, 0]);
   const lampCount = lampSpots.length;
   const poleGeo = new THREE.CylinderGeometry(0.12, 0.16, 5.2, 6);
-  const headGeo = new THREE.SphereGeometry(0.42, 8, 6);
-  const poolGeo = new THREE.CircleGeometry(3.4, 16);
+  const headGeo = new THREE.SphereGeometry(0.46, 8, 6);
+  const haloGeo = new THREE.SphereGeometry(1.05, 10, 8);
+  const poolGeo = new THREE.CircleGeometry(4.8, 16);
   const poles = new THREE.InstancedMesh(poleGeo, new THREE.MeshLambertMaterial({ color: 0x2a2a30 }), lampCount);
-  const heads = new THREE.InstancedMesh(headGeo, new THREE.MeshBasicMaterial({ color: 0xffc46b }), lampCount);
+  const heads = new THREE.InstancedMesh(headGeo, new THREE.MeshBasicMaterial({ color: 0xffd28a }), lampCount);
+  // Big warm glow halo around every lamp head so it dazzles in daylight.
+  const lampHalos = new THREE.InstancedMesh(
+    haloGeo,
+    new THREE.MeshBasicMaterial({ color: 0xffc46b, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }),
+    lampCount,
+  );
   const pools = new THREE.InstancedMesh(
     poolGeo,
-    new THREE.MeshBasicMaterial({ color: 0xffb36b, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0xffb36b, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false }),
     lampCount,
   );
   const m4 = new THREE.Matrix4();
@@ -514,13 +553,16 @@ export function buildCity(scene) {
     poles.setMatrixAt(i, m4);
     m4.makeTranslation(x, baseY + 5.35, z);
     heads.setMatrixAt(i, m4);
+    lampHalos.setMatrixAt(i, m4);
     m4.makeRotationX(-Math.PI / 2);
     m4.setPosition(x, baseY > 0 ? 0.45 : 0.08, z);
     pools.setMatrixAt(i, m4);
   });
   scene.add(poles);
   scene.add(heads);
+  scene.add(lampHalos);
   scene.add(pools);
+  S._lampHaloCount = lampCount;
   // A few real warm lights for glow at key spots.
   for (const [x, z] of [[-140, 0], [140, 0], [196, 0], [-196, 140]]) {
     const pl = new THREE.PointLight(0xffb36b, 60, 34);
@@ -605,7 +647,26 @@ export function updateCranes(time) {
     c.hook.position.set(20, -0.6 - len, 0);
     c.hookY = hookY;
     c.light.material.color.setHex(Math.sin(time * 3 + c.phase) > 0 ? 0xff2222 : 0x550000);
+    if (c.lightHalo) {
+      const on = Math.sin(time * 3 + c.phase) > 0;
+      c.lightHalo.material.opacity = on ? 0.75 : 0.05;
+      c.lightHalo.material.color.setHex(on ? 0xff2222 : 0x550000);
+    }
     if (c.rotating) c.jib.rotation.y = Math.sin(time * 0.12 + c.phase) * 0.7;
+  }
+}
+
+// A few lit windows flicker gently so the facades feel alive: every half
+// second a handful of building materials get a new warmth. Cheap — only a
+// few materials change per tick, no new textures or draw calls.
+let _flickerT = 0;
+export function updateWindowFlicker(time) {
+  if (!S._glowMats || S._glowMats.length === 0) return;
+  if (time - _flickerT < 0.5) return;
+  _flickerT = time;
+  for (let k = 0; k < 5; k++) {
+    const m = S._glowMats[Math.floor(Math.random() * S._glowMats.length)];
+    m.emissiveIntensity = 0.55 + Math.random() * 0.4;
   }
 }
 

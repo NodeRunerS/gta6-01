@@ -54,24 +54,26 @@ export function buildTrafficLights(scene) {
   scene.add(heads);
 
   // 120 lamp spheres (3 per head x 4 heads x 10 lights) — one InstancedMesh,
-  // plus a halo sphere per lamp so the lit colour glows visibly in daylight.
-  const lampGeo = new THREE.SphereGeometry(0.3, 8, 6);
+  // plus a big saturated halo sphere per lamp so the lit colour dazzles
+  // in daylight.
+  const lampGeo = new THREE.SphereGeometry(0.34, 8, 6);
   const lampMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const lampCount = n * 4 * 3;
   const lamps = new THREE.InstancedMesh(lampGeo, lampMat, lampCount);
   scene.add(lamps);
-  const haloGeo = new THREE.SphereGeometry(0.55, 8, 6);
+  const haloGeo = new THREE.SphereGeometry(0.9, 10, 8);
   const haloMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.4,
+    color: 0xffffff, transparent: true, opacity: 0.65,
     blending: THREE.AdditiveBlending, depthWrite: false,
   });
   const halos = new THREE.InstancedMesh(haloGeo, haloMat, lampCount);
   scene.add(halos);
+  S._trafficHaloOpacity = 0.65;
 
   const DARK = new THREE.Color(0x1a0505);
-  const RED = new THREE.Color(0xff2222);
-  const YELLOW = new THREE.Color(0xffc400);
-  const GREEN = new THREE.Color(0x22ff66);
+  const RED = new THREE.Color(0xff1a1a);
+  const YELLOW = new THREE.Color(0xffd200);
+  const GREEN = new THREE.Color(0x00ff55);
 
   // Phase of the 28 s cycle for a given absolute time and offset.
   function phaseAt(t, offset) {
