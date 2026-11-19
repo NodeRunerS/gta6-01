@@ -50,6 +50,9 @@ export function createPlayer(scene) {
     walkPhase: 0, speed: 0,
     camYaw: Math.PI, _cleanTimer: 0, _bustTimer: 0,
     _shootCooldown: 0,
+    // Last dry ground the player stood on — the water respawn lands here.
+    _lastSafe: { x: 140, z: 0 },
+    _waterCooldown: 0,
   };
   S.player = p;
   return p;
@@ -141,6 +144,52 @@ export function respawn() {
   saveGame();
 }
 
+// Denize düşen karakteri kuru karaya geri getirir — ceza yok, sağlık, para
+// ve silah aynen kalır. Önce son güvenli kara noktası, yoksa kıyıya doğru
+// halka halka arama, en sonda doğuş noktası. Araba suda kaldıysa araba
+// suda kalır, oyuncu kıyıda yeniden doğar.
+export function respawnFromWater() {
+  const p = S.player;
+  if (!p || S.mode !== 'playing') return false;
+  let spot = null;
+  if (p._lastSafe && isLand(p._lastSafe.x, p._lastSafe.z)) {
+    spot = p._lastSafe;
+  }
+  if (!spot) {
+    outer:
+    for (let r = 4; r <= 160; r += 4) {
+      for (let a = 0; a < 16; a++) {
+        const ang = (a / 16) * Math.PI * 2;
+        const tx = p.pos.x + Math.cos(ang) * r;
+        const tz = p.pos.z + Math.sin(ang) * r;
+        if (isLand(tx, tz)) { spot = { x: tx, z: tz }; break outer; }
+      }
+    }
+  }
+  if (!spot) spot = (S.locations && S.safehouseOwned) ? S.locations.safehouse : { x: 140, z: 0 };
+  if (p.vehicle) {
+    const v = p.vehicle;
+    v.group.position.set(v.pos.x, v.y || 0, v.pos.z);
+    v.occupied = false;
+    v.speed = 0;
+    if (v.kind === 'car') setHeadlightVisible(v, false);
+    p.vehicle = null;
+    p.onFoot = true;
+    p.group.visible = true;
+  }
+  p.pos.x = spot.x;
+  p.pos.z = spot.z;
+  p.y = 0;
+  p.vy = 0;
+  p.group.position.set(spot.x, 0, spot.z);
+  p._lastSafe = { x: spot.x, z: spot.z };
+  p._waterCooldown = 1.5;
+  S.stats.waterRespawns = (S.stats.waterRespawns || 0) + 1;
+  if (S.hudToast) S.hudToast('Denize düştün! Yeniden doğdun.');
+  if (S.audio) S.audio.setEngine(0, false);
+  return true;
+}
+
 export function nearestVehicle(maxD) {
   const p = S.player;
   let best = null;
@@ -204,7 +253,12 @@ export function exitVehicle() {
     S.hudToast && S.hudToast('Too high to jump — land first!');
     return;
   }
-  if (!spot) { spot = [v.pos.x, v.pos.z]; }
+  if (!spot) {
+    // No dry spot around the vehicle (e.g. a heli set down on the bay):
+    // step out at the last safe ground instead of into the water.
+    if (p._lastSafe && isLand(p._lastSafe.x, p._lastSafe.z)) spot = [p._lastSafe.x, p._lastSafe.z];
+    else spot = [v.pos.x, v.pos.z];
+  }
   const [ex, ez] = spot;
   p.pos.x = ex;
   p.pos.z = ez;
@@ -323,6 +377,21 @@ export function updatePlayer(dt) {
   const p = S.player;
   if (!p || S.mode !== 'playing') return;
   updateEnterRing();
+  // Denize düşmek: karakter yüzemez, suda takılıp kalamaz. Yaya ya da
+  // arabayla suda bulunursa hemen kuru karada yeniden doğar (tekne ve
+  // helikopter su üstünde olmak için vardır, onlara dokunulmaz).
+  p._waterCooldown = Math.max(0, (p._waterCooldown || 0) - dt);
+  if (p._waterCooldown <= 0 && isWater(p.pos.x, p.pos.z)) {
+    if (p.onFoot || (p.vehicle && p.vehicle.kind === 'car')) {
+      respawnFromWater();
+      return;
+    }
+  }
+  // Remember the last dry ground spot (on foot, or in a car/heli on land)
+  // so a water respawn always lands somewhere safe.
+  if (isLand(p.pos.x, p.pos.z) && (p.y || 0) === 0 && (!p.vehicle || p.vehicle.kind !== 'boat')) {
+    p._lastSafe = { x: p.pos.x, z: p.pos.z };
+  }
   p._shootCooldown = Math.max(0, p._shootCooldown - dt);
   const k = S.keys;
   const input = {

@@ -311,6 +311,9 @@ window.__game = {
         return dark;
       })(),
       trafficLight: S.trafficLights ? S.trafficLights.lights[0].ns : null,
+      // Water respawn (round 13): how many times the player fell in the
+      // sea and was put back on dry land.
+      waterRespawns: S.stats.waterRespawns || 0,
       businesses: S.ownedBusinesses,
       safehouse: S.safehouseOwned,
       radio: S.radio.on ? S.audio.stationInfo().name : 'off',
