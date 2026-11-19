@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { S, isLand, isWater, clampToLand } from './state.js';
 import { clamp, dist2d, angleLerp } from './util.js';
 import { makeHuman } from './people.js';
-import { makeVehicle, driveVehicle } from './vehicles.js';
+import { makeVehicle, driveVehicle, attachHeadlight, setHeadlightVisible } from './vehicles.js';
 import { addWanted, clearPolice } from './police.js';
 import { nearestInteraction, doInteraction, hitEnemies } from './missions.js';
 import { syncShells } from './collectibles.js';
@@ -165,6 +165,8 @@ export function enterVehicle(v) {
   v.occupied = true;
   p.group.visible = false;
   if (v.kind === 'car') {
+    attachHeadlight(v);
+    setHeadlightVisible(v, S.headlightsOn);
     addWanted(1, 'car theft');
     S.stats.carsStolen++;
   }
@@ -205,6 +207,7 @@ export function exitVehicle() {
   p.pos.z = ez;
   p.group.position.set(ex, 0, ez);
   p.group.visible = true;
+  if (v.kind === 'car') setHeadlightVisible(v, false);
   p.vehicle = null;
   p.onFoot = true;
   v.occupied = false;
@@ -227,8 +230,19 @@ export function shoot() {
   // Muzzle flash pose.
   p.parts.armR.rotation.x = -1.4;
   setTimeout(() => { if (p.parts) p.parts.armR.rotation.x = 0; }, 140);
+  // Aiming (right mouse held): fire exactly where the crosshair points.
+  const aiming = !!S.aiming;
+  if (aiming) p.heading = S.camYaw;
   const dir = { x: Math.sin(p.heading), z: Math.cos(p.heading) };
   const hit = hitEnemies(p.pos, dir, 42, 34);
+  if (hit) {
+    // Crosshair hit flash.
+    const ch = document.getElementById('crosshair');
+    if (ch) {
+      ch.classList.add('hit');
+      setTimeout(() => ch.classList.remove('hit'), 130);
+    }
+  }
   if (!hit) {
     // Hitting a pedestrian is a crime.
     for (const w of S.pedestrians) {
@@ -245,12 +259,13 @@ export function shoot() {
       }
     }
   }
-  // Tracer line.
+  // Tracer line (longer while aiming, so the shot reads to the crosshair).
+  const tracerLen = aiming ? 42 : 10;
   const tracer = new THREE.Mesh(
-    new THREE.BoxGeometry(0.06, 0.06, 10),
+    new THREE.BoxGeometry(0.06, 0.06, tracerLen),
     new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.8 }),
   );
-  tracer.position.set(p.pos.x + dir.x * 5, 1.4, p.pos.z + dir.z * 5);
+  tracer.position.set(p.pos.x + dir.x * (tracerLen / 2), 1.4, p.pos.z + dir.z * (tracerLen / 2));
   tracer.rotation.y = p.heading;
   S.scene.add(tracer);
   setTimeout(() => S.scene.remove(tracer), 90);
@@ -316,7 +331,9 @@ export function updatePlayer(dt) {
   if (input.right) { mx += Math.cos(camYaw); mz -= Math.sin(camYaw); }
   const moving = mx !== 0 || mz !== 0;
   const sprint = !!k.ShiftLeft;
-  const speed = sprint ? 9.5 : 5.2;
+  // Aiming (right mouse): slower, and Rex faces where the camera points.
+  const aiming = !!S.aiming;
+  const speed = aiming ? 3.0 : (sprint ? 9.5 : 5.2);
   if (moving) {
     const len = Math.hypot(mx, mz);
     mx /= len;
@@ -331,7 +348,7 @@ export function updatePlayer(dt) {
     } else if (isLand(p.pos.x, nz)) {
       p.pos.z = nz;
     }
-    p.heading = Math.atan2(mx, mz);
+    p.heading = aiming ? camYaw : Math.atan2(mx, mz);
     p.walkPhase += dt * speed * 1.6;
     const s = Math.sin(p.walkPhase);
     p.parts.legL.rotation.x = s * 0.6;
@@ -344,6 +361,8 @@ export function updatePlayer(dt) {
     p.parts.armL.rotation.x *= 0.8;
     p.parts.armR.rotation.x *= 0.8;
   }
+  // Aiming while standing still: Rex still faces the crosshair.
+  if (aiming) p.heading = camYaw;
   // Jump.
   if (k.Space && p.y === 0) p.vy = 7;
   if (p.y > 0 || p.vy !== 0) {
@@ -383,6 +402,27 @@ export function updateCamera(dt) {
     const r = 260;
     cam.position.set(Math.sin(S.menuAngle) * r, 90, Math.cos(S.menuAngle) * r);
     cam.lookAt(0, 10, 0);
+    return;
+  }
+  // CS-style aiming: over-the-shoulder, closer, slight zoom.
+  const aiming = !!S.aiming && p.onFoot && S.mode === 'playing';
+  const targetFov = aiming ? 42 : 62;
+  if (cam.fov !== targetFov) {
+    cam.fov = targetFov;
+    cam.updateProjectionMatrix();
+  }
+  if (aiming) {
+    const yaw = S.camYaw;
+    const back = 3.4;
+    const up = 2.0;
+    const right = 0.95;
+    const cx = p.pos.x - Math.sin(yaw) * back + Math.cos(yaw) * right;
+    const cz = p.pos.z - Math.cos(yaw) * back - Math.sin(yaw) * right;
+    const cy = (p.y || 0) + up;
+    cam.position.x += (cx - cam.position.x) * Math.min(1, dt * 14);
+    cam.position.y += (cy - cam.position.y) * Math.min(1, dt * 14);
+    cam.position.z += (cz - cam.position.z) * Math.min(1, dt * 14);
+    cam.lookAt(p.pos.x + Math.sin(yaw) * 12, (p.y || 0) + 1.5, p.pos.z + Math.cos(yaw) * 12);
     return;
   }
   const target = p.vehicle ? p.vehicle : p;

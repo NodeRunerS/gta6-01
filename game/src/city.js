@@ -1,7 +1,8 @@
 // City builder for Solmar City: Streets of Gold.
 // Two islands, a turquoise bay, three bridges, a mansion island, Ocean Beach,
 // downtown, port, military base, mall and a Cuban/Haitian district — all
-// procedural, dusk-lit, with neon, palms and street lamps.
+// procedural, bright daytime sky with drifting clouds, neon, palms and
+// street lamps.
 import * as THREE from 'three';
 import { S, WORLD } from './state.js';
 import { mulberry32, pick, clamp } from './util.js';
@@ -34,12 +35,12 @@ function neonSign(scene, text, color, x, y, z, ry, w = 18) {
 
 export function buildCity(scene) {
   const mats = {
-    groundWest: flatMat(0x3d4a3f),
-    groundEast: flatMat(0x4a4438),
-    groundMansion: flatMat(0x46543f),
+    groundWest: flatMat(0x6f9a55),
+    groundEast: flatMat(0x7ba05c),
+    groundMansion: flatMat(0x6f9a5e),
     sand: flatMat(0xe8d5a0),
-    road: flatMat(0x23232b),
-    bridge: flatMat(0x2e2e3a),
+    road: flatMat(0x4b4b53),
+    bridge: flatMat(0x565660),
     water: new THREE.MeshPhongMaterial({
       map: waterTexture(), color: 0x35b8d8, emissive: 0x0e5a70, emissiveIntensity: 0.7, shininess: 120, specular: 0x99ddff,
     }),
@@ -49,24 +50,43 @@ export function buildCity(scene) {
   };
   S._waterMat = mats.water;
 
-  // --- Sky dome, sun, fog, lights ---
+  // --- Sky dome, sun, fog, lights: bright daytime blue sky ---
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(900, 24, 16),
     new THREE.MeshBasicMaterial({ map: skyTexture(), side: THREE.BackSide, fog: false }),
   );
   scene.add(sky);
-  scene.fog = new THREE.Fog(0xc97a6d, 220, 780);
-  scene.add(new THREE.HemisphereLight(0xffb3d9, 0x3a2a4a, 0.85));
-  const sun = new THREE.DirectionalLight(0xffb36b, 1.7);
-  sun.position.set(-320, 130, 90);
+  scene.fog = new THREE.Fog(0xa8d8f0, 220, 780);
+  scene.add(new THREE.HemisphereLight(0x9fd4ff, 0x6a8a5a, 0.95));
+  const sun = new THREE.DirectionalLight(0xfff1cf, 1.9);
+  sun.position.set(-320, 220, 90);
   scene.add(sun);
   const sunSprite = new THREE.Mesh(
     new THREE.CircleGeometry(46, 32),
-    new THREE.MeshBasicMaterial({ color: 0xffd27a, fog: false }),
+    new THREE.MeshBasicMaterial({ color: 0xfff6c8, fog: false }),
   );
-  sunSprite.position.set(-620, 105, 60);
+  sunSprite.position.set(-620, 180, 60);
   sunSprite.lookAt(0, 60, 0);
   scene.add(sunSprite);
+
+  // --- Drifting daytime clouds: white puffs high above the city ---
+  S.clouds = [];
+  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, fog: false });
+  const cloudGeo = new THREE.SphereGeometry(1, 10, 8);
+  for (let i = 0; i < 16; i++) {
+    const cloud = new THREE.Group();
+    const puffs = 3 + Math.floor(rng() * 3);
+    for (let k = 0; k < puffs; k++) {
+      const puff = new THREE.Mesh(cloudGeo, cloudMat);
+      const s = 7 + rng() * 9;
+      puff.scale.set(s, s * 0.42, s * 0.7);
+      puff.position.set((k - puffs / 2) * 8 + rng() * 4, rng() * 3, rng() * 6 - 3);
+      cloud.add(puff);
+    }
+    cloud.position.set(-420 + rng() * 840, 130 + rng() * 70, -380 + rng() * 760);
+    scene.add(cloud);
+    S.clouds.push({ group: cloud, speed: 1.5 + rng() * 2 });
+  }
 
   // --- Water: bay + surrounding sea ---
   const water = new THREE.Mesh(new THREE.PlaneGeometry(1100, 900), mats.water);
@@ -107,6 +127,30 @@ export function buildCity(scene) {
   roadStrip(43, 196, 34, 12); // causeway road
   roadStrip(238, 0, 12, 392); // beachfront drive
 
+  // --- Lane markings: dashed yellow centre lines on every road ---
+  const dashGeo = new THREE.PlaneGeometry(0.4, 2.4);
+  const dashMat = new THREE.MeshBasicMaterial({ color: 0xffd23d });
+  const dashSpots = [];
+  for (const a of [...WORLD.avenuesWest, ...WORLD.avenuesEast]) {
+    for (let z = -184; z <= 184; z += 9) dashSpots.push([a, z, 0]);
+  }
+  for (const s of WORLD.streets) {
+    for (let x = -188; x <= -64; x += 9) dashSpots.push([x, s, 1]);
+    for (let x = 64; x <= 188; x += 9) dashSpots.push([x, s, 1]);
+  }
+  for (const bz of WORLD.bridgeZ) {
+    for (let x = -52; x <= 52; x += 9) dashSpots.push([x, bz, 1]);
+  }
+  const dashes = new THREE.InstancedMesh(dashGeo, dashMat, dashSpots.length);
+  const dm = new THREE.Matrix4();
+  dashSpots.forEach(([x, z, rot], i) => {
+    dm.makeRotationX(-Math.PI / 2);
+    if (rot) dm.multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2));
+    dm.setPosition(x, 0.045, z);
+    dashes.setMatrixAt(i, dm);
+  });
+  scene.add(dashes);
+
   // --- Bridges across the bay: deck, rails, neon strips, pillars ---
   const neonColors = [0xff2e88, 0x00e5ff, 0xff9e00];
   WORLD.bridgeZ.forEach((bz, i) => {
@@ -140,7 +184,7 @@ export function buildCity(scene) {
     // One material (not a 6-material array) to keep draw calls low; the
     // facade texture on the roof is barely visible from street level at dusk.
     const side = new THREE.MeshLambertMaterial({
-      map: tex, color: tint, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55,
+      map: tex, color: tint, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.22,
     });
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), side);
     m.position.set(x, h / 2, z);
@@ -433,13 +477,23 @@ export function buildCity(scene) {
     scene.add(pl);
   }
 
-  // --- Palm trees: instanced trunks + crowns ---
+  // --- Palm trees: instanced trunks + crowns (dense rows everywhere) ---
   const palmSpots = [];
   for (let z = -168; z <= 168; z += 24) palmSpots.push([206, z]);
   for (let z = -168; z <= 168; z += 48) palmSpots.push([-48, z]);
   for (let z = -168; z <= 168; z += 48) palmSpots.push([48, z]);
   for (let i = 0; i < 8; i++) palmSpots.push([-20 + rng() * 40, 182 + rng() * 26]);
   for (let i = 0; i < 10; i++) palmSpots.push([226 + rng() * 20, -180 + rng() * 360]);
+  // Both sides of every main avenue, plus park clusters and mansion island.
+  for (const a of [...WORLD.avenuesWest, ...WORLD.avenuesEast]) {
+    for (let z = -168; z <= 168; z += 56) {
+      palmSpots.push([a - 7.5, z]);
+      palmSpots.push([a + 7.5, z + 28]);
+    }
+  }
+  for (let i = 0; i < 12; i++) palmSpots.push([-176 + rng() * 24, -40 + rng() * 80]);
+  for (let i = 0; i < 8; i++) palmSpots.push([-20 + rng() * 40, 182 + rng() * 26]);
+  for (let i = 0; i < 6; i++) palmSpots.push([228 + rng() * 16, -180 + rng() * 360]);
   const palmCount = palmSpots.length;
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.3, 5.4, 6);
   const crownGeo = new THREE.IcosahedronGeometry(2.1, 0);
@@ -490,5 +544,15 @@ export function updateCranes(time) {
     c.hookY = hookY;
     c.light.material.color.setHex(Math.sin(time * 3 + c.phase) > 0 ? 0xff2222 : 0x550000);
     if (c.rotating) c.jib.rotation.y = Math.sin(time * 0.12 + c.phase) * 0.7;
+  }
+}
+
+// Drift the daytime clouds across the sky, wrapping around the map.
+// Called every frame from main.js.
+export function updateClouds(dt) {
+  if (!S.clouds) return;
+  for (const c of S.clouds) {
+    c.group.position.x += c.speed * dt;
+    if (c.group.position.x > 460) c.group.position.x = -460;
   }
 }

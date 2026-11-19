@@ -105,7 +105,7 @@ export function makeCarMesh(typeName, colorOverride) {
     g.add(lightBar);
     addBox(g, W + 0.02, H * 0.4, L * 0.4, lam(0x1c1c22), 0, H * 0.35, 0);
   }
-  g.userData = { type: typeName, def, wheels, lightBar };
+  g.userData = { type: typeName, def, wheels, lightBar, hl, tl };
   return g;
 }
 
@@ -138,6 +138,50 @@ function makeHeliMesh() {
   }
   g.userData = { type: 'heli', rotor };
   return g;
+}
+
+// --- Working headlights: a real SpotLight + visible beam cone + glow discs
+// for the player's car (attached lazily when the player enters a car).
+export function attachHeadlight(v) {
+  if (v.headlight) return v.headlight;
+  const g = v.group;
+  const def = v.def;
+  const L = def.len;
+  const H = def.h;
+  const spot = new THREE.SpotLight(0xffeebb, 400, 50, 0.46, 0.55, 1.2);
+  spot.position.set(0, H * 0.5, L / 2);
+  const target = new THREE.Object3D();
+  target.position.set(0, 0, L / 2 + 26);
+  g.add(target);
+  spot.target = target;
+  g.add(spot);
+  // Visible beam cone (wide end forward, apex at the car).
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(2.4, 15, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffeebb, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+  );
+  cone.rotation.x = -Math.PI / 2;
+  cone.position.set(0, H * 0.45, L / 2 + 7.5);
+  g.add(cone);
+  // Glow discs on the headlight bar.
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xfff6c8, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+  const glowGeo = new THREE.CircleGeometry(0.34, 12);
+  const glows = [];
+  for (const gx of [-0.6, 0.6]) {
+    const disc = new THREE.Mesh(glowGeo, glowMat);
+    disc.position.set(gx, H * 0.38, L / 2 + 0.06);
+    g.add(disc);
+    glows.push(disc);
+  }
+  v.headlight = { spot, cone, glows };
+  return v.headlight;
+}
+
+export function setHeadlightVisible(v, on) {
+  if (!v || !v.headlight) return;
+  v.headlight.spot.visible = on;
+  v.headlight.cone.visible = on;
+  for (const d of v.headlight.glows) d.visible = on;
 }
 
 // --- Player vehicle physics (arcade drift) ---
@@ -186,6 +230,12 @@ function driveCar(v, input, dt) {
   v.group.rotation.z = -v.slide * 0.12;
   v.group.rotation.x = clamp(-(v.speed - (v._prevSpeed || 0)) * 0.004, -0.05, 0.05);
   v._prevSpeed = v.speed;
+  // Brake lights flare when reversing or handbraking.
+  const tl = v.group.userData.tl;
+  if (tl) {
+    const braking = input.back || input.handbrake;
+    tl.material.color.setHex(braking ? 0xff8888 : 0xff2222);
+  }
 }
 
 function driveBoat(v, input, dt) {
@@ -296,6 +346,9 @@ class TrafficCar {
       }
     }
     this.speed += clamp(target - this.speed, -14 * dt, 7 * dt);
+    // Brake lights flare while slowing for a light or a car ahead.
+    const tl = this.mesh.userData.tl;
+    if (tl) tl.material.color.setHex(target < this.speed - 1.5 ? 0xff8888 : 0xff2222);
     this.s += this.dir * this.speed * dt;
     // Turn at an intersection sometimes.
     const cross = this.axis === 'x' ? [...WORLD.avenuesWest, ...WORLD.avenuesEast] : WORLD.streets;
@@ -321,11 +374,39 @@ class TrafficCar {
 export function buildTraffic(scene, count = 10) {
   S.traffic = [];
   for (let i = 0; i < count; i++) S.traffic.push(new TrafficCar(scene));
+  // One InstancedMesh of warm light pools on the road ahead of each
+  // traffic car, so their headlights visibly work too.
+  const poolGeo = new THREE.CircleGeometry(2.0, 16);
+  const poolMat = new THREE.MeshBasicMaterial({
+    color: 0xffeebb, transparent: true, opacity: 0.25,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const pools = new THREE.InstancedMesh(poolGeo, poolMat, count);
+  pools.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(pools);
+  S._trafficPools = pools;
   return S.traffic;
 }
 
+const _poolDummy = new THREE.Object3D();
 export function updateTraffic(dt) {
   for (const c of S.traffic) c.update(dt);
+  const pools = S._trafficPools;
+  if (pools) {
+    pools.visible = S.headlightsOn;
+    _poolDummy.rotation.order = 'YXZ';
+    for (let i = 0; i < S.traffic.length; i++) {
+      const c = S.traffic[i];
+      const p = c.pos();
+      const h = c.axis === 'x' ? (c.dir > 0 ? Math.PI / 2 : -Math.PI / 2) : (c.dir > 0 ? 0 : Math.PI);
+      _poolDummy.position.set(p.x + Math.sin(h) * 4.5, 0.06, p.z + Math.cos(h) * 4.5);
+      _poolDummy.rotation.set(-Math.PI / 2, h, 0);
+      _poolDummy.scale.set(1, 1.8, 1);
+      _poolDummy.updateMatrix();
+      pools.setMatrixAt(i, _poolDummy.matrix);
+    }
+    pools.instanceMatrix.needsUpdate = true;
+  }
 }
 
 export function spawnBoats(scene) {

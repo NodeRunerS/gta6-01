@@ -200,5 +200,15 @@ export function updateHud() {
   } else {
     prompt.classList.add('hidden');
   }
+  // Crosshair: faint while holding the pistol on foot, bold while aiming.
+  const ch = $('crosshair');
+  if (ch) {
+    if (S.mode === 'playing' && !p.vehicle && p.weapon === 'pistol') {
+      ch.classList.remove('hidden');
+      ch.classList.toggle('aim', !!S.aiming);
+    } else {
+      ch.classList.add('hidden');
+    }
+  }
   drawMinimap();
 }

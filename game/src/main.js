@@ -3,11 +3,11 @@
 import * as THREE from 'three';
 import { S } from './state.js';
 import { AudioSys } from './audio.js';
-import { buildCity, updateCranes } from './city.js';
+import { buildCity, updateCranes, updateClouds } from './city.js';
 import { buildShells, updateShells, resetShells, SHELL_TOTAL } from './collectibles.js';
 import { buildTrafficLights } from './traffic-lights.js';
 import { buildPedestrians } from './people.js';
-import { buildTraffic, updateTraffic, spawnBoats, spawnHeli, spawnParkedCars } from './vehicles.js';
+import { buildTraffic, updateTraffic, spawnBoats, spawnHeli, spawnParkedCars, setHeadlightVisible } from './vehicles.js';
 import { updatePolice, updateExplosions } from './police.js';
 import { showStartMarker, updateMissions, nearestInteraction } from './missions.js';
 import {
@@ -96,6 +96,12 @@ addEventListener('keydown', (e) => {
     const st = S.audio.radioSwitch();
     toast(`♪ ${st.name} — ${st.track}`);
   }
+  if (e.code === 'KeyH' && S.mode === 'playing') {
+    S.headlightsOn = !S.headlightsOn;
+    const v = S.player.vehicle;
+    if (v && v.kind === 'car') setHeadlightVisible(v, S.headlightsOn);
+    toast(S.headlightsOn ? 'Headlights ON' : 'Headlights OFF');
+  }
   if (e.code === 'KeyR' && S.mode === 'playing' && !S.player.vehicle) {
     S.audio.radioSwitch();
   }
@@ -113,7 +119,14 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => { S.keys[e.code] = false; });
 addEventListener('mousedown', (e) => {
   S.audio.init();
-  if (e.target === renderer.domElement && S.mode === 'playing') shoot();
+  if (e.target === renderer.domElement && S.mode === 'playing') {
+    if (e.button === 2) {
+      // Right mouse: CS-style aim (on foot only).
+      if (S.player.onFoot) S.aiming = true;
+    } else if (e.button === 0) {
+      shoot();
+    }
+  }
 });
 let dragging = false;
 let lastX = 0;
@@ -123,14 +136,19 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   lastX = e.clientX;
   lastY = e.clientY;
 });
+renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 addEventListener('mousemove', (e) => {
   if (!dragging) return;
-  S.camYaw -= (e.clientX - lastX) * 0.005;
+  const sens = S.aiming ? 0.0035 : 0.005;
+  S.camYaw -= (e.clientX - lastX) * sens;
   S.camPitch = Math.max(0.08, Math.min(0.9, S.camPitch + (e.clientY - lastY) * 0.003));
   lastX = e.clientX;
   lastY = e.clientY;
 });
-addEventListener('mouseup', () => { dragging = false; });
+addEventListener('mouseup', (e) => {
+  dragging = false;
+  if (e.button === 2) S.aiming = false;
+});
 renderer.domElement.addEventListener('wheel', (e) => {
   S.camDist = Math.max(5, Math.min(16, S.camDist + e.deltaY * 0.01));
 }, { passive: true });
@@ -172,6 +190,7 @@ function step(dt) {
   }
   if (S.trafficLights) S.trafficLights.update(S.time);
   updateCranes(S.time);
+  updateClouds(dt);
   if (S.mode === 'playing') {
     updatePlayer(dt);
     updateShells(dt);
@@ -245,6 +264,12 @@ window.__game = {
       policeHeli: !!S.policeHeli,
       lampCount: S.lampCount,
       buildingCount: S.buildingCount,
+      palmCount: S.palmCount,
+      clouds: S.clouds ? S.clouds.length : 0,
+      aiming: !!S.aiming,
+      headlightsOn: S.headlightsOn,
+      playerHeadlight: !!(S.player.vehicle && S.player.vehicle.headlight && S.player.vehicle.headlight.spot.visible),
+      trafficLight: S.trafficLights ? S.trafficLights.lights[0].ns : null,
       businesses: S.ownedBusinesses,
       safehouse: S.safehouseOwned,
       radio: S.radio.on ? S.audio.stationInfo().name : 'off',

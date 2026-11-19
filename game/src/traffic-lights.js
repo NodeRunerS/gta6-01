@@ -1,11 +1,11 @@
 // Working traffic lights for Solmar City: poles with diagonal arms and heads
-// on all four faces, a 20 s cycle with per-intersection offsets, and a query
+// on all four faces, a 28 s cycle with per-intersection offsets, and a query
 // traffic cars use to stop at red. Lamps are a single InstancedMesh.
 import * as THREE from 'three';
 import { S } from './state.js';
 
-// green 7, yellow 2, all-red 1, cross green 7, yellow 2, all-red 1
-const CYCLE = 20;
+// green 9, yellow 3, all-red 2, cross green 9, yellow 3, all-red 2
+const CYCLE = 28;
 
 const SPOTS = [
   [-140, 0], [-140, -112], [-140, 112], [-84, -56], [-84, 56],
@@ -53,26 +53,34 @@ export function buildTrafficLights(scene) {
   scene.add(arms);
   scene.add(heads);
 
-  // 120 lamp spheres (3 per head x 4 heads x 10 lights) — one InstancedMesh.
-  const lampGeo = new THREE.SphereGeometry(0.22, 8, 6);
+  // 120 lamp spheres (3 per head x 4 heads x 10 lights) — one InstancedMesh,
+  // plus a halo sphere per lamp so the lit colour glows visibly in daylight.
+  const lampGeo = new THREE.SphereGeometry(0.3, 8, 6);
   const lampMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const lampCount = n * 4 * 3;
   const lamps = new THREE.InstancedMesh(lampGeo, lampMat, lampCount);
   scene.add(lamps);
+  const haloGeo = new THREE.SphereGeometry(0.55, 8, 6);
+  const haloMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.4,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const halos = new THREE.InstancedMesh(haloGeo, haloMat, lampCount);
+  scene.add(halos);
 
   const DARK = new THREE.Color(0x1a0505);
   const RED = new THREE.Color(0xff2222);
   const YELLOW = new THREE.Color(0xffc400);
   const GREEN = new THREE.Color(0x22ff66);
 
-  // Phase of the 20 s cycle for a given absolute time and offset.
+  // Phase of the 28 s cycle for a given absolute time and offset.
   function phaseAt(t, offset) {
     const p = (((t + offset) % CYCLE) + CYCLE) % CYCLE;
-    if (p < 7) return ['green', 'red'];
-    if (p < 9) return ['yellow', 'red'];
-    if (p < 10) return ['red', 'red'];
-    if (p < 17) return ['red', 'green'];
-    if (p < 19) return ['red', 'yellow'];
+    if (p < 9) return ['green', 'red'];
+    if (p < 12) return ['yellow', 'red'];
+    if (p < 14) return ['red', 'red'];
+    if (p < 23) return ['red', 'green'];
+    if (p < 26) return ['red', 'yellow'];
     return ['red', 'red'];
   }
 
@@ -98,11 +106,15 @@ export function buildTrafficLights(scene) {
           m4.makeTranslation(hx, 5.95 - j * 0.62, hz);
           lamps.setMatrixAt(idx, m4);
           lamps.setColorAt(idx, c);
+          halos.setMatrixAt(idx, m4);
+          halos.setColorAt(idx, c);
         });
       });
     });
     lamps.instanceMatrix.needsUpdate = true;
     if (lamps.instanceColor) lamps.instanceColor.needsUpdate = true;
+    halos.instanceMatrix.needsUpdate = true;
+    if (halos.instanceColor) halos.instanceColor.needsUpdate = true;
   }
 
   // For a car at (x,z) moving along `axis` ('x' or 'z') in direction `dir`:

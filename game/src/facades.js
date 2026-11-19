@@ -144,16 +144,15 @@ export function waterTexture() {
   return t;
 }
 
-// Warm dusk sky dome: deep purple up top, pink-orange at the horizon.
+// Bright daytime sky dome: deep blue up top, pale blue at the horizon.
 export function skyTexture() {
   const [c, ctx] = makeCanvas(16, 256);
   const g = ctx.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0, '#2a1a5e');
-  g.addColorStop(0.35, '#7a2d8f');
-  g.addColorStop(0.55, '#e85d75');
-  g.addColorStop(0.72, '#ff9e57');
-  g.addColorStop(0.85, '#ffc46b');
-  g.addColorStop(1, '#ffe9b0');
+  g.addColorStop(0, '#1a5fb4');
+  g.addColorStop(0.4, '#3f8fd8');
+  g.addColorStop(0.7, '#7ab8e8');
+  g.addColorStop(0.88, '#bfe3f7');
+  g.addColorStop(1, '#dff2fb');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 16, 256);
   return toTexture(c);

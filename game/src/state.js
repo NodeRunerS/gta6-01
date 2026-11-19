@@ -119,6 +119,8 @@ export const S = {
   camPitch: 0.32,
   camDist: 9,
   menuAngle: 0,
+  headlightsOn: true,
+  aiming: false,
   drawCalls: 0,
   fps: 0,
 };
