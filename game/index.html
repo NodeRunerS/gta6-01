@@ -69,6 +69,16 @@
   #screen-wasted h2 { color: #ff2e4d; }
   #screen-busted h2 { color: #2ea8ff; }
   .end-screen button { margin-top: 24px; font-family: Impact, "Arial Black", sans-serif; font-style: italic; font-size: 26px; padding: 10px 34px; background: #ffc93d; border: none; color: #1a0b26; cursor: pointer; letter-spacing: 2px; }
+
+  /* ---------- Touch controls (coarse pointers / phones only) ---------- */
+  #touch-ui { display: none; }
+  body.touch #touch-ui { display: block; }
+  .tcluster { position: fixed; z-index: 25; display: flex; gap: 10px; }
+  .tcluster.left { left: max(12px, env(safe-area-inset-left)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 196px); flex-wrap: wrap; width: 148px; }
+  .tcluster.right { right: max(12px, env(safe-area-inset-right)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 64px); flex-direction: column; align-items: flex-end; }
+  .tbtn { width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); background: rgba(10, 6, 20, 0.55); color: #fff; font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .tbtn.on { background: rgba(255, 201, 61, 0.75); color: #1a0b26; }
+  .tbtn.wide { width: 84px; border-radius: 32px; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -127,6 +137,20 @@
 <div id="screen-busted" class="end-screen">
   <h2 class="display-font">BUSTED</h2>
   <button id="btn-respawn2">RESPAWN — $200 FINE</button>
+</div>
+
+<div id="touch-ui" aria-hidden="true">
+  <div class="tcluster left">
+    <button class="tbtn" id="t-up" type="button" aria-label="Forward">▲</button>
+    <button class="tbtn" id="t-down" type="button" aria-label="Back">▼</button>
+    <button class="tbtn" id="t-left" type="button" aria-label="Left">◀</button>
+    <button class="tbtn" id="t-right" type="button" aria-label="Right">▶</button>
+  </div>
+  <div class="tcluster right">
+    <button class="tbtn wide" id="t-jump" type="button" aria-label="Rise">YÜKSEL</button>
+    <button class="tbtn wide" id="t-shift" type="button" aria-label="Descend">ALÇAL</button>
+    <button class="tbtn wide" id="t-act" type="button" aria-label="Enter or interact">E</button>
+  </div>
 </div>
 
 <script type="importmap">
