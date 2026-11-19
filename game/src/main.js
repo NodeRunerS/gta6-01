@@ -171,7 +171,7 @@ document.getElementById('btn-respawn2').addEventListener('click', respawn);
 
 // --- Touch controls (phones / coarse pointers only) -----------------------
 // Plain hold buttons that set the same S.keys flags the keyboard sets, so a
-// phone player can drive and fly: YÜKSEL holds Space (heli up), ALÇAL holds
+// phone player can drive and fly: UP holds Space (heli up), DOWN holds
 // Shift (heli down). A tap does nothing for the heli — lift needs a hold.
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
 function bindHold(id, code) {
