@@ -169,6 +169,56 @@ document.getElementById('btn-quit').addEventListener('click', () => {
 document.getElementById('btn-respawn').addEventListener('click', respawn);
 document.getElementById('btn-respawn2').addEventListener('click', respawn);
 
+// --- Touch controls (phones / coarse pointers only) -----------------------
+// Plain hold buttons that set the same S.keys flags the keyboard sets, so a
+// phone player can drive and fly: YÜKSEL holds Space (heli up), ALÇAL holds
+// Shift (heli down). A tap does nothing for the heli — lift needs a hold.
+if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
+function bindHold(id, code) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const on = (e) => {
+    e.preventDefault();
+    S.keys[code] = true;
+    el.classList.add('on');
+    if (S.audio) S.audio.init();
+  };
+  const off = (e) => {
+    e.preventDefault();
+    S.keys[code] = false;
+    el.classList.remove('on');
+  };
+  el.addEventListener('pointerdown', on);
+  el.addEventListener('pointerup', off);
+  el.addEventListener('pointerleave', off);
+  el.addEventListener('pointercancel', off);
+}
+function bindTap(id, fn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (S.audio) S.audio.init();
+    fn();
+  });
+}
+function pressE() {
+  if (S.mode !== 'playing') return;
+  if (S.player.vehicle) tryEnterExit();
+  else {
+    const it = nearestInteraction();
+    if (it) tryInteract();
+    else tryEnterExit();
+  }
+}
+bindHold('t-up', 'KeyW');
+bindHold('t-down', 'KeyS');
+bindHold('t-left', 'KeyA');
+bindHold('t-right', 'KeyD');
+bindHold('t-jump', 'Space');
+bindHold('t-shift', 'ShiftLeft');
+bindTap('t-act', pressE);
+
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();

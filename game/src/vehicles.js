@@ -306,8 +306,12 @@ function driveHeli(v, input, dt) {
   const def = v.def;
   const lift = (input.up ? 1 : 0) - (input.down ? 1 : 0);
   v.vy = v.vy || 0;
-  v.vy += clamp(lift * 14 - v.vy, -16 * dt, 16 * dt);
-  v.vy = clamp(v.vy, -10, 12);
+  // Strong, immediate lift: the old ramp (16/s^2 toward 14) took about a
+  // full second of holding before the heli visibly left the ground, so on a
+  // phone it felt like it never rose at all and just drove like a car.
+  // 48/s^2 toward 16 gets it climbing within ~0.15 s of holding the key.
+  v.vy += clamp(lift * 16 - v.vy, -48 * dt, 48 * dt);
+  v.vy = clamp(v.vy, -12, 16);
   v.y = clamp((v.y || 0) + v.vy * dt, 0, 130);
   const fwd = input.forward ? 1 : input.back ? -0.6 : 0;
   v.speed += clamp(fwd * def.top - v.speed, -10 * dt, 10 * dt);
