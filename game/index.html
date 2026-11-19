@@ -51,6 +51,14 @@
   #prompt { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); font-size: 19px; color: #fff; background: rgba(0,0,0,0.55); padding: 8px 16px; border-radius: 4px; text-shadow: 1px 1px 0 #000; }
   #toast { position: absolute; left: 50%; bottom: 26%; transform: translateX(-50%); font-size: 24px; color: #ffc93d; text-shadow: 2px 2px 0 #000, 0 0 16px #ff9e00; opacity: 0; transition: opacity 0.25s; text-align: center; }
   #toast.show { opacity: 1; }
+  /* CS-style crosshair: faint on foot with the pistol, bold while aiming. */
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); z-index: 12; pointer-events: none; opacity: 0.35; }
+  #crosshair.aim { opacity: 1; width: 30px; height: 30px; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; box-shadow: 0 0 3px #000; }
+  #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+  #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+  #crosshair .ch-dot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; background: #fff; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 3px #000; }
+  #crosshair.hit::before, #crosshair.hit::after, #crosshair.hit .ch-dot { background: #ff2222; }
   #damage-flash { position: fixed; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,0,0,0.45) 100%); opacity: 0; pointer-events: none; z-index: 15; }
   #damage-flash.show { opacity: 1; }
 
@@ -66,6 +74,7 @@
 <body>
 <div id="game"></div>
 <div id="damage-flash"></div>
+<div id="crosshair" class="hidden"><span class="ch-dot"></span></div>
 
 <div id="hud" class="hidden">
   <div id="objective" class="display-font"></div>
@@ -97,7 +106,7 @@
   </div>
   <div class="controls">
     <b>WASD</b> walk / drive &nbsp;·&nbsp; <b>Shift</b> sprint / heli down &nbsp;·&nbsp; <b>Space</b> jump / handbrake / heli up<br>
-    <b>E</b> enter / exit car, boat &amp; helicopter — buy at shops &nbsp;·&nbsp; <b>Click</b> shoot &nbsp;·&nbsp; <b>V</b> radio station<br>
+    <b>E</b> enter / exit car, boat &amp; helicopter — buy at shops &nbsp;·&nbsp; <b>Click</b> shoot &nbsp;·&nbsp; <b>Right mouse</b> aim &nbsp;·&nbsp; <b>H</b> headlights &nbsp;·&nbsp; <b>V</b> radio station<br>
     <b>Mouse drag</b> camera &nbsp;·&nbsp; <b>Wheel</b> zoom &nbsp;·&nbsp; <b>Esc</b> pause<br>
     Steal cars, run missions for Mara and the Broker, buy businesses and own Solmar City.
   </div>
