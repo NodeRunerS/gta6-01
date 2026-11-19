@@ -99,6 +99,14 @@ function drawMinimap() {
     blip(S.locations.helipad.x, S.locations.helipad.z, '#ffffff', 2.5);
     blip(S.locations.marina.x, S.locations.marina.z, '#00e5ff', 2.5);
   }
+  // Uncollected Gold Shells as small gold dots.
+  if (S.shellSpots) {
+    for (let i = 0; i < S.shellSpots.length; i++) {
+      if (!(S.shellsCollected || []).includes(i)) {
+        blip(S.shellSpots[i][0], S.shellSpots[i][1], '#ffd23d', 2);
+      }
+    }
+  }
   // Mission marker.
   if (S.mission) {
     const step = S.mission.def.steps[S.mission.step];
@@ -146,6 +154,8 @@ export function updateHud() {
   const money = $('money');
   money.textContent = fmtMoney(S.money);
   money.className = S.money >= 10000 ? 'money rich' : 'money';
+  const shellsEl = $('shells');
+  if (shellsEl) shellsEl.textContent = `🐚 Shells ${S.shellsCollected.length}/24`;
   $('health-fill').style.width = clamp(p.health, 0, 100) + '%';
   $('armor-fill').style.width = clamp(p.armor, 0, 100) + '%';
   if (p.vehicle) {

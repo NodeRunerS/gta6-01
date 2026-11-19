@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { S } from './state.js';
 import { AudioSys } from './audio.js';
-import { buildCity } from './city.js';
+import { buildCity, updateCranes } from './city.js';
+import { buildShells, updateShells, resetShells, SHELL_TOTAL } from './collectibles.js';
 import { buildTrafficLights } from './traffic-lights.js';
 import { buildPedestrians } from './people.js';
 import { buildTraffic, updateTraffic, spawnBoats, spawnHeli, spawnParkedCars } from './vehicles.js';
@@ -44,6 +45,7 @@ camera.position.set(200, 80, 200);
 S.audio = new AudioSys();
 
 buildCity(scene);
+buildShells(scene);
 buildTrafficLights(scene);
 buildPedestrians(scene);
 buildTraffic(scene, 10);
@@ -63,6 +65,7 @@ function startGame(fresh) {
     S.missionIndex = 0;
     S.ownedBusinesses = [];
     S.safehouseOwned = false;
+    resetShells();
   } else {
     applySave(saved);
   }
@@ -168,8 +171,10 @@ function step(dt) {
     S._waterMat.map.offset.y += dt * 0.005;
   }
   if (S.trafficLights) S.trafficLights.update(S.time);
+  updateCranes(S.time);
   if (S.mode === 'playing') {
     updatePlayer(dt);
+    updateShells(dt);
     updateTraffic(dt);
     for (const w of S.pedestrians) if (!w.dead) w.update(dt);
     updatePolice(dt);
@@ -243,6 +248,11 @@ window.__game = {
       businesses: S.ownedBusinesses,
       safehouse: S.safehouseOwned,
       radio: S.radio.on ? S.audio.stationInfo().name : 'off',
+      shells: S.shellsCollected.length,
+      shellTotal: SHELL_TOTAL,
+      cranes: S.cranes ? S.cranes.length : 0,
+      craneHookY: S.cranes ? S.cranes[0].hookY : null,
+      craneJibYaw: S.cranes ? S.cranes[1].jib.rotation.y : null,
       drawCalls: S.drawCalls,
       fps: S.fps,
     };

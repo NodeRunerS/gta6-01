@@ -8,6 +8,7 @@ import { makeHuman } from './people.js';
 import { makeVehicle, driveVehicle } from './vehicles.js';
 import { addWanted, clearPolice } from './police.js';
 import { nearestInteraction, doInteraction, hitEnemies } from './missions.js';
+import { syncShells } from './collectibles.js';
 
 const SAVE_KEY = 'solmar-save';
 
@@ -60,6 +61,7 @@ export function saveGame() {
       money: S.money, missionIndex: S.missionIndex,
       ownedBusinesses: S.ownedBusinesses, safehouseOwned: S.safehouseOwned,
       health: S.player.health, armor: S.player.armor, ammo: S.player.ammo,
+      shells: S.shellsCollected || [],
     }));
   } catch (e) { /* storage unavailable */ }
 }
@@ -83,6 +85,8 @@ export function applySave(sv) {
   S.player.health = sv.health ?? 100;
   S.player.armor = sv.armor ?? 0;
   S.player.ammo = sv.ammo ?? 48;
+  S.shellsCollected = sv.shells || [];
+  syncShells();
 }
 
 export function wastePlayer() {

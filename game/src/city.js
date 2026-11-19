@@ -192,24 +192,59 @@ export function buildCity(scene) {
     c.position.set(-210 + (i % 5) * 10, 1.3 + Math.floor(i / 5) * 2.7, 168 + (i % 3) * 4);
     scene.add(c);
   }
-  // Gantry cranes.
-  for (const cz of [128, 156]) {
+  // Animated gantry cranes over the container yard: yellow steel legs,
+  // rotating jib, rising/lowering hook on a cable, blinking warning light.
+  S.cranes = [];
+  const craneSpots = [[-216, 128, 0], [-216, 156, 1], [-200, 184, 2]];
+  craneSpots.forEach(([cx, cz, idx]) => {
     const crane = new THREE.Group();
     const legMat = flatMat(0xffc93d);
+    const darkMat = flatMat(0x2a2a30);
     for (const [lx, lz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) {
       const leg = box(1.2, 26, 1.2, legMat);
       leg.position.set(lx, 13, lz);
       crane.add(leg);
     }
+    for (const bz of [-3, 3]) {
+      const brace = box(7.2, 0.8, 0.8, flatMat(0xff9e00));
+      brace.position.set(0, 18, bz);
+      crane.add(brace);
+    }
     const top = box(10, 2, 8, legMat);
     top.position.y = 27;
     crane.add(top);
+    // Rotating jib assembly (arm, counter-jib, weight, cabin, trolley).
+    const jib = new THREE.Group();
+    jib.position.y = 28.2;
     const arm = box(26, 1.4, 1.4, legMat);
-    arm.position.set(10, 27, 0);
-    crane.add(arm);
-    crane.position.set(-216, 0, cz);
+    arm.position.set(9, 0, 0);
+    jib.add(arm);
+    const counter = box(7, 1.4, 1.4, legMat);
+    counter.position.set(-5.5, 0, 0);
+    jib.add(counter);
+    const weight = box(2.5, 3, 2.5, darkMat);
+    weight.position.set(-8, -1, 0);
+    jib.add(weight);
+    const cab = box(3, 2.4, 3, flatMat(0xf2ead8));
+    cab.position.set(-1.5, -2.2, 2.5);
+    jib.add(cab);
+    const trolley = box(1.6, 1, 1.6, darkMat);
+    trolley.position.set(20, -0.6, 0);
+    jib.add(trolley);
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1, 6), darkMat);
+    jib.add(cable);
+    const hook = box(0.9, 0.9, 0.9, flatMat(0xff5e3d));
+    jib.add(hook);
+    const light = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xff2222 }),
+    );
+    light.position.set(0, 29.5, 0);
+    crane.add(light);
+    crane.position.set(cx, 0, cz);
     scene.add(crane);
-  }
+    S.cranes.push({ jib, cable, hook, light, phase: idx * 2.1, rotating: idx === 1, hookY: 10 });
+  });
   // Cargo ships in the western sea.
   for (const sz of [120, 168]) {
     const ship = new THREE.Group();
@@ -439,4 +474,21 @@ export function buildCity(scene) {
     ],
   };
   return { lampCount, palmCount, buildingCount };
+}
+
+// Animate the harbour cranes: hooks rise and lower on a loop, one jib
+// slowly rotates, warning lights blink. Called every frame from main.js.
+export function updateCranes(time) {
+  if (!S.cranes) return;
+  for (const c of S.cranes) {
+    const hookY = 10 + Math.sin(time * 0.45 + c.phase) * 7; // 3..17 above ground
+    const topY = 28.2 - 0.6; // trolley underside, jib-local
+    const len = topY - hookY;
+    c.cable.scale.y = Math.max(0.5, len);
+    c.cable.position.set(20, -0.6 - len / 2, 0);
+    c.hook.position.set(20, -0.6 - len, 0);
+    c.hookY = hookY;
+    c.light.material.color.setHex(Math.sin(time * 3 + c.phase) > 0 ? 0xff2222 : 0x550000);
+    if (c.rotating) c.jib.rotation.y = Math.sin(time * 0.12 + c.phase) * 0.7;
+  }
 }
