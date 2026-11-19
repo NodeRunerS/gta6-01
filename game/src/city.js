@@ -261,6 +261,8 @@ export function buildCity(scene) {
     const c = box(8, 2.6, 2.6, flatMat(pick(rng, contColors)));
     c.position.set(-210 + (i % 5) * 10, 1.3 + Math.floor(i / 5) * 2.7, 168 + (i % 3) * 4);
     scene.add(c);
+    // Solid stacked containers: block walking/driving through them too.
+    buildingRects.push({ x0: c.position.x - 4, x1: c.position.x + 4, z0: c.position.z - 1.3, z1: c.position.z + 1.3 });
   }
   // Animated gantry cranes over the container yard: yellow steel legs,
   // rotating jib, rising/lowering hook on a cable, blinking warning light.
@@ -354,6 +356,8 @@ export function buildCity(scene) {
   const hangar = box(26, 9, 18, flatMat(0x6b7a5a));
   hangar.position.set(-196, 4.5, -168);
   scene.add(hangar);
+  // Solid hangar: block walking/driving through it.
+  buildingRects.push({ x0: -209, x1: -183, z0: -177, z1: -159 });
   const watch = new THREE.Group();
   const wl = box(1, 12, 1, flatMat(0x4a5a3a));
   wl.position.y = 6;
@@ -619,6 +623,9 @@ export function buildCity(scene) {
   S.palmSpots = palmSpots;
   S.palmCount = palmCount;
   S.buildingCount = buildingCount;
+  // Solid footprints (buildings + hangar + containers) for collision:
+  // the player and cars are blocked by these, never walk/drive through.
+  S.buildingRects = buildingRects;
   S.locations = {
     gunshop: { x: -84, z: -56, name: 'AMMU-NATION' },
     safehouse: { x: 140, z: 112, name: 'Ocean Safehouse' },
@@ -626,12 +633,48 @@ export function buildCity(scene) {
     marina: { x: 62, z: 140, name: 'Marina' },
     plaza: { x: 140, z: 0, name: 'Ocean Plaza' },
     businesses: [
-      { id: 'club', name: 'Neon Nights', x: 196, z: 56, price: 15000, income: 400 },
-      { id: 'docks', name: 'Solmar Docks', x: -196, z: 140, price: 25000, income: 700 },
-      { id: 'print', name: 'Print Works', x: -140, z: 84, price: 10000, income: 250 },
+      // Door-side positions (just outside the building walls) so the
+      // player can always reach the buy prompt from the street.
+      { id: 'club', name: 'Neon Nights', x: 181, z: 56, price: 15000, income: 400 },
+      { id: 'docks', name: 'Solmar Docks', x: -180, z: 140, price: 25000, income: 700 },
+      { id: 'print', name: 'Print Works', x: -140, z: 72, price: 10000, income: 250 },
     ],
   };
+  // Findable beacons: tall glowing columns over the marina boats and the
+  // helipad, so the player can spot the boat and the heli from anywhere.
+  function beacon(x, z, color) {
+    const g = new THREE.Group();
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.7, 0.7, 40, 8, 1, true),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    beam.position.y = 20;
+    g.add(beam);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(3, 3.8, 24),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.1;
+    g.add(ring);
+    g.position.set(x, 0, z);
+    scene.add(g);
+    return { group: g, beam, ring, phase: Math.random() * 6 };
+  }
+  S._beacons = [beacon(56, 140, 0x00e5ff), beacon(-168, 168, 0xffc93d)];
   return { lampCount, palmCount, buildingCount };
+}
+
+// Pulse the marina + helipad beacons so they stay visible. Called every
+// frame from main.js.
+export function updateBeacons(time) {
+  if (!S._beacons) return;
+  for (const b of S._beacons) {
+    const s = Math.sin(time * 2.5 + b.phase);
+    b.beam.material.opacity = 0.22 + 0.14 * (0.6 + 0.4 * s);
+    const rs = 1 + s * 0.12;
+    b.ring.scale.set(rs, rs, 1);
+  }
 }
 
 // Animate the harbour cranes: hooks rise and lower on a loop, one jib

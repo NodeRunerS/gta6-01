@@ -2,7 +2,7 @@
 // combat (fist + pistol), vehicle entry/exit, camera follow, health/armor,
 // WASTED / BUSTED, and the localStorage save.
 import * as THREE from 'three';
-import { S, isLand, isWater, clampToLand } from './state.js';
+import { S, isLand, isWater, clampToLand, hitsBuilding } from './state.js';
 import { clamp, dist2d, angleLerp } from './util.js';
 import { makeHuman } from './people.js';
 import { makeVehicle, driveVehicle, attachHeadlight, setHeadlightVisible } from './vehicles.js';
@@ -162,7 +162,7 @@ export function respawnFromWater() {
         const ang = (a / 16) * Math.PI * 2;
         const tx = p.pos.x + Math.cos(ang) * r;
         const tz = p.pos.z + Math.sin(ang) * r;
-        if (isLand(tx, tz)) { spot = { x: tx, z: tz }; break outer; }
+        if (isLand(tx, tz) && !hitsBuilding(tx, tz, 0.6)) { spot = { x: tx, z: tz }; break outer; }
       }
     }
   }
@@ -240,7 +240,7 @@ export function exitVehicle() {
   ];
   let spot = null;
   for (const [tx, tz] of tries) {
-    if (isLand(tx, tz)) { spot = [tx, tz]; break; }
+    if (isLand(tx, tz) && !hitsBuilding(tx, tz, 0.6)) { spot = [tx, tz]; break; }
   }
   if (v.kind === 'boat') {
     // Only step out onto dry land — never strand the player mid-bay.
@@ -388,8 +388,9 @@ export function updatePlayer(dt) {
     }
   }
   // Remember the last dry ground spot (on foot, or in a car/heli on land)
-  // so a water respawn always lands somewhere safe.
-  if (isLand(p.pos.x, p.pos.z) && (p.y || 0) === 0 && (!p.vehicle || p.vehicle.kind !== 'boat')) {
+  // so a water respawn always lands somewhere safe — never inside a
+  // building.
+  if (isLand(p.pos.x, p.pos.z) && !hitsBuilding(p.pos.x, p.pos.z, 0.6) && (p.y || 0) === 0 && (!p.vehicle || p.vehicle.kind !== 'boat')) {
     p._lastSafe = { x: p.pos.x, z: p.pos.z };
   }
   p._shootCooldown = Math.max(0, p._shootCooldown - dt);
@@ -440,12 +441,14 @@ export function updatePlayer(dt) {
     mz /= len;
     const nx = p.pos.x + mx * speed * dt;
     const nz = p.pos.z + mz * speed * dt;
-    if (isLand(nx, nz)) {
+    // Solid buildings: the player stops at the wall and slides along it
+    // (axis-separated, same as the water edge) — never walks through.
+    if (isLand(nx, nz) && !hitsBuilding(nx, nz, 0.6)) {
       p.pos.x = nx;
       p.pos.z = nz;
-    } else if (isLand(nx, p.pos.z)) {
+    } else if (isLand(nx, p.pos.z) && !hitsBuilding(nx, p.pos.z, 0.6)) {
       p.pos.x = nx;
-    } else if (isLand(p.pos.x, nz)) {
+    } else if (isLand(p.pos.x, nz) && !hitsBuilding(p.pos.x, nz, 0.6)) {
       p.pos.z = nz;
     }
     p.heading = aiming ? camYaw : Math.atan2(mx, mz);

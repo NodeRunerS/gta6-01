@@ -2,7 +2,7 @@
 // working headlights/taillights, traffic that follows the road grid and
 // stops at red lights, two drivable speedboats and one flyable helicopter.
 import * as THREE from 'three';
-import { S, WORLD, isLand, isWater } from './state.js';
+import { S, WORLD, isLand, isWater, hitsBuilding } from './state.js';
 import { mulberry32, pick, clamp, angleLerp } from './util.js';
 
 const rng = mulberry32(777);
@@ -256,7 +256,8 @@ function driveCar(v, input, dt) {
   const nx = v.pos.x + (hx * v.speed + sx * v.slide * Math.abs(v.speed) * 0.4) * dt;
   const nz = v.pos.z + (hz * v.speed + sz * v.slide * Math.abs(v.speed) * 0.4) * dt;
   const onDeck = Math.abs(nx) < 60 && WORLD.bridgeZ.some((bz) => Math.abs(nz - bz) < 8);
-  if (isLand(nx, nz) || onDeck) {
+  // Solid buildings: a car stops at the wall instead of driving through.
+  if ((isLand(nx, nz) || onDeck) && !hitsBuilding(nx, nz, 1.6)) {
     v.pos.x = nx;
     v.pos.z = nz;
   } else {
@@ -460,7 +461,10 @@ export function updateTraffic(dt) {
 
 export function spawnBoats(scene) {
   S.boats = [];
-  const spots = [[44, 128, 0.4], [44, 152, -0.3], [20, 200, 1.2]];
+  // Moored right off the marina shore (4u from the water's edge at x=56)
+  // so the player can walk up and board with E — the old spots were 12u
+  // out in the bay, out of boarding range, and one sat on dry land.
+  const spots = [[52, 128, 0.4], [52, 152, -0.3], [52, 168, 1.2]];
   for (const [x, z, h] of spots) {
     const b = makeVehicle('boat', 'boat', x, z, h);
     b.y = -0.4;
@@ -486,7 +490,7 @@ export function spawnParkedCars(scene) {
     ['supercar', 140, -48, 1.57], ['sedan', 84, 48, 0], ['muscle', -140, -28, 1.57],
     ['convertible', 196, -56, 0], ['suv', -84, 112, -1.57], ['pickup', 140, 112, 1.57],
     ['sedan', 84, -112, 0], ['taxi', -196, 56, 1.57], ['supercar', 196, 112, 0],
-    ['sedan', -140, 140, 0], ['muscle', 140, -84, 1.57], ['convertible', 140, 168, 0],
+    ['sedan', -140, 140, 0], ['muscle', 140, -84, 1.57], ['convertible', 140, 182, 0],
   ];
   const cars = [];
   for (const [type, x, z, h] of spots) {

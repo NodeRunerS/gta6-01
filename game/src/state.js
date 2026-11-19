@@ -56,6 +56,17 @@ export function isWater(x, z) {
   return !isLand(x, z);
 }
 
+// Is (x,z) inside a building footprint (expanded by r, the mover's radius)?
+// S.buildingRects is filled by buildCity; false until then.
+export function hitsBuilding(x, z, r = 0.6) {
+  const rects = S.buildingRects;
+  if (!rects) return false;
+  for (const b of rects) {
+    if (x > b.x0 - r && x < b.x1 + r && z > b.z0 - r && z < b.z1 + r) return true;
+  }
+  return false;
+}
+
 // Is (x,z) on a drivable road? Traffic, police and spawn placement use this.
 export function onRoad(x, z) {
   if (onBridge(x, z) || onCauseway(x, z)) return true;

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { S } from './state.js';
 import { AudioSys } from './audio.js';
-import { buildCity, updateCranes, updateClouds, updateWindowFlicker } from './city.js';
+import { buildCity, updateCranes, updateClouds, updateWindowFlicker, updateBeacons } from './city.js';
 import { buildShells, updateShells, resetShells, SHELL_TOTAL } from './collectibles.js';
 import { buildTrafficLights } from './traffic-lights.js';
 import { buildPedestrians } from './people.js';
@@ -192,6 +192,7 @@ function step(dt) {
   updateCranes(S.time);
   updateClouds(dt);
   updateWindowFlicker(S.time);
+  updateBeacons(S.time);
   if (S.mode === 'playing') {
     updatePlayer(dt);
     updateShells(dt);
@@ -314,6 +315,12 @@ window.__game = {
       // Water respawn (round 13): how many times the player fell in the
       // sea and was put back on dry land.
       waterRespawns: S.stats.waterRespawns || 0,
+      // Building collision + findable boat/heli (round 14): solid
+      // footprint count, marina + helipad beacons, boat positions.
+      buildingRects: S.buildingRects ? S.buildingRects.length : 0,
+      beacons: S._beacons ? S._beacons.length : 0,
+      boats: (S.boats || []).map((b) => ({ x: +b.pos.x.toFixed(1), z: +b.pos.z.toFixed(1) })),
+      heliAt: S.heli ? { x: +S.heli.pos.x.toFixed(1), z: +S.heli.pos.z.toFixed(1) } : null,
       businesses: S.ownedBusinesses,
       safehouse: S.safehouseOwned,
       radio: S.radio.on ? S.audio.stationInfo().name : 'off',

@@ -1,7 +1,7 @@
 // Story missions, courier side jobs and the cash economy for Solmar City:
 // gun shop, a buyable safehouse and three income-generating businesses.
 import * as THREE from 'three';
-import { S, isLand } from './state.js';
+import { S, isLand, hitsBuilding } from './state.js';
 import { dist2d, clamp } from './util.js';
 import { makeHuman } from './people.js';
 import { setWanted } from './police.js';
@@ -11,25 +11,33 @@ export const MISSIONS = [
     name: 'Wheels Up', giver: 'Mara Solis', reward: 800,
     start: { x: 140, z: -56 },
     steps: [
-      { kind: 'goto', pos: { x: -196, z: 140 }, text: 'Drive to the Solmar Docks' },
-      { kind: 'kill', pos: { x: -196, z: 140 }, count: 3, text: 'Take out the dock guards (3)' },
+      // Docks yard, just outside the warehouse wall (the old spot was
+      // inside the warehouse and unreachable once buildings went solid).
+      { kind: 'goto', pos: { x: -180, z: 140 }, text: 'Drive to the Solmar Docks' },
+      { kind: 'kill', pos: { x: -180, z: 140 }, count: 3, text: 'Take out the dock guards (3)' },
       { kind: 'goto', pos: { x: 140, z: -56 }, text: 'Return to Mara on Ocean Drive' },
     ],
   },
   {
     name: 'Neon Nights', giver: 'Eddie', reward: 1200,
-    start: { x: 196, z: 56 },
+    // Door-side positions in front of Neon Nights (old spots were inside
+    // the club building).
+    start: { x: 181, z: 56 },
     steps: [
-      { kind: 'collect', pos: { x: 196, z: 56 }, text: 'Pick up the package at Neon Nights' },
-      { kind: 'goto', pos: { x: -140, z: 84 }, text: 'Deliver it to the Print Works' },
+      { kind: 'collect', pos: { x: 181, z: 56 }, text: 'Pick up the package at Neon Nights' },
+      { kind: 'goto', pos: { x: -140, z: 72 }, text: 'Deliver it to the Print Works' },
     ],
   },
   {
     name: 'Harbor Lights', giver: 'The Broker', reward: 2000,
     start: { x: 62, z: 140 },
     steps: [
-      { kind: 'boat', pos: { x: 0, z: 196 }, text: 'Take a boat to Starfish Island' },
-      { kind: 'collect', pos: { x: 0, z: 196 }, text: 'Grab the stash at the mansion' },
+      // The old target (0,196) was the centre of the mansion island —
+      // no boat can get within 8u of it. The new one is the water just
+      // south of the island, reachable by boat; the stash waits on the
+      // north lawn, outside the mansion walls.
+      { kind: 'boat', pos: { x: 0, z: 216 }, text: 'Take a boat to Starfish Island' },
+      { kind: 'collect', pos: { x: 0, z: 204 }, text: 'Grab the stash at the mansion' },
       { kind: 'boat', pos: { x: 62, z: 140 }, text: 'Bring it back to the Marina' },
     ],
   },
@@ -160,8 +168,14 @@ function spawnEnemies(pos, count, boss) {
       sex: 'male', topColor: 0x1c1c22, pantsColor: 0x1c1c22, hairStyle: 'flat',
       scale: boss ? 1.12 : 0.95 + Math.random() * 0.08,
     });
-    const x = pos.x + (Math.random() - 0.5) * 14;
-    const z = pos.z + (Math.random() - 0.5) * 14;
+    let x = pos.x + (Math.random() - 0.5) * 14;
+    let z = pos.z + (Math.random() - 0.5) * 14;
+    // Never spawn inside a building: nudge out to the nearest clear spot.
+    if (hitsBuilding(x, z, 0.6)) {
+      for (const [ox, oz] of [[x + 10, z], [x - 10, z], [x, z + 10], [x, z - 10]]) {
+        if (!hitsBuilding(ox, oz, 0.6)) { x = ox; z = oz; break; }
+      }
+    }
     built.group.position.set(x, 0, z);
     // Gun in the right hand.
     const gun = new THREE.Mesh(
@@ -297,7 +311,10 @@ function checkStep(dt) {
 export function startCourier() {
   if (S.courier) return;
   const spots = [
-    { x: -140, z: 0 }, { x: 140, z: 112 }, { x: -84, z: 168 }, { x: 196, z: -84 }, { x: 0, z: 196 },
+    // Door-side targets: (196,-84) was inside a beachfront hotel and
+    // (0,196) inside the mansion — both unreachable once buildings went
+    // solid, so both moved just outside the walls.
+    { x: -140, z: 0 }, { x: 140, z: 112 }, { x: -84, z: 168 }, { x: 181, z: -84 }, { x: 0, z: 204 },
   ];
   const target = spots[Math.floor(Math.random() * spots.length)];
   S.courier = { target, deadline: 60 };
