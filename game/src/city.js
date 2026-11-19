@@ -4,7 +4,7 @@
 // procedural, bright daytime sky with drifting clouds, neon, palms and
 // street lamps.
 import * as THREE from 'three';
-import { S, WORLD } from './state.js';
+import { S, WORLD, isLand } from './state.js';
 import { mulberry32, pick, clamp } from './util.js';
 import {
   glassTexture, decoTexture, brickTexture, houseTexture,
@@ -180,7 +180,11 @@ export function buildCity(scene) {
   const houseTex = [houseTexture(131), houseTexture(147), houseTexture(163)];
   let buildingCount = 0;
 
+  // Footprints lamps/palms must stay out of (roads are added below too).
+  const buildingRects = [];
+
   function building(x, z, w, d, h, tex, tint = 0xffffff) {
+    buildingRects.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
     // One material (not a 6-material array) to keep draw calls low; the
     // facade texture on the roof is barely visible from street level at dusk.
     const side = new THREE.MeshLambertMaterial({
@@ -368,6 +372,42 @@ export function buildCity(scene) {
   building(196, 56, 24, 20, 12, decoTex[0]);
   neonSign(scene, 'NEON NIGHTS', '#ff2e88', 196, 14, 45, 0, 20);
 
+  // ROADSIDE RULE: every lamp/palm must stand at least 1.5u clear of any
+  // drivable lane (avenues, streets, bridge decks, causeway road, beachfront
+  // drive) and outside every building. Candidate spots are checked against
+  // all road rects + building footprints and nudged (or dropped) on clash.
+  const obstacles = [];
+  for (const a of [...WORLD.avenuesWest, ...WORLD.avenuesEast]) {
+    obstacles.push({ x0: a - 5, x1: a + 5, z0: -196, z1: 196 });
+  }
+  for (const s of WORLD.streets) {
+    obstacles.push({ x0: -224, x1: -56, z0: s - 5, z1: s + 5 });
+    obstacles.push({ x0: 56, x1: 224, z0: s - 5, z1: s + 5 });
+    if (WORLD.bridgeZ.includes(s)) obstacles.push({ x0: -56, x1: 56, z0: s - 5, z1: s + 5 });
+  }
+  for (const bz of WORLD.bridgeZ) obstacles.push({ x0: -62, x1: 62, z0: bz - 5, z1: bz + 5 });
+  obstacles.push({ x0: 232, x1: 244, z0: -196, z1: 196 }); // beachfront drive
+  obstacles.push({ x0: 26, x1: 60, z0: 190, z1: 202 }); // causeway road
+  obstacles.push({ x0: 207, x1: 217, z0: -196, z1: 196 }); // boardwalk
+  for (const r of buildingRects) obstacles.push(r);
+  function clearSpot(x, z, margin = 1.5) {
+    if (!isLand(x, z)) return false;
+    for (const r of obstacles) {
+      if (x > r.x0 - margin && x < r.x1 + margin && z > r.z0 - margin && z < r.z1 + margin) return false;
+    }
+    return true;
+  }
+  function findSpot(x, z, margin = 1.5) {
+    const tries = [
+      [x, z], [x + 3, z], [x - 3, z], [x, z + 3], [x, z - 3],
+      [x + 6, z], [x - 6, z], [x, z + 12], [x, z - 12],
+    ];
+    for (const [tx, tz] of tries) {
+      if (clearSpot(tx, tz, margin)) return [tx, tz];
+    }
+    return null;
+  }
+
   // Boardwalk + lifeguard towers + umbrellas on Ocean Beach.
   const board = new THREE.Mesh(new THREE.PlaneGeometry(10, 392), new THREE.MeshLambertMaterial({ color: 0x9a7a54 }));
   board.rotation.x = -Math.PI / 2;
@@ -385,12 +425,14 @@ export function buildCity(scene) {
     roof.position.y = 7;
     roof.rotation.y = Math.PI / 4;
     tower.add(roof);
-    tower.position.set(238, 0, tz);
+    tower.position.set(248, 0, tz);
     scene.add(tower);
   }
   for (let i = 0; i < 10; i++) {
-    const ux = 228 + rng() * 18;
-    const uz = -170 + i * 36 + rng() * 10;
+    // Umbrellas on the sand between boardwalk and drive, never on the road.
+    const spot = findSpot(222 + rng() * 6, -170 + i * 36 + rng() * 10);
+    if (!spot) continue;
+    const [ux, uz] = spot;
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.6, 6), flatMat(0xf2ead8));
     pole.position.set(ux, 1.3, uz);
     scene.add(pole);
@@ -431,21 +473,30 @@ export function buildCity(scene) {
   }
 
   // --- Street lamps: instanced poles, heads, light pools ---
+  // Lamp spots are [x, z, baseY]: baseY 0 on the ground, 1.45 when the pole
+  // is mounted on top of a bridge rail.
   const lampSpots = [];
+  function placeLamp(x, z) {
+    const s = findSpot(x, z);
+    if (s) lampSpots.push([s[0], s[1], 0]);
+    return s;
+  }
+  // Avenue lamps: 2.5u off the road edge, mid-block (never on a cross street).
   for (const a of [...WORLD.avenuesWest, ...WORLD.avenuesEast]) {
-    for (let z = -168; z <= 168; z += 28) lampSpots.push([a + 6, z]);
+    for (let z = -154; z <= 182; z += 28) placeLamp(a + 7.5, z);
   }
+  // Street lamps: at avenue corners (2u off the avenue, 2.5u off the street).
   for (const s of WORLD.streets) {
-    for (const x of [-196, -56 + 14, 56 + 14, 196]) {
-      if (x > -60 && x < 60) continue;
-      lampSpots.push([x, s + 6]);
-    }
+    for (const x of [-77, 77]) placeLamp(x, s + 7.5);
   }
+  // Bridge lamps: mounted on the rail, off the deck and above the lane edge.
   for (const bz of WORLD.bridgeZ) {
-    for (const x of [-40, 0, 40]) lampSpots.push([x, bz + 6.5]);
+    for (const x of [-40, 0, 40]) lampSpots.push([x, bz + 7.6, 1.45]);
   }
-  for (let z = -168; z <= 168; z += 28) lampSpots.push([210, z]);
-  for (let x = 30; x <= 56; x += 13) lampSpots.push([x, 190]);
+  // Beachfront lamps: on the sand strip between boardwalk and drive.
+  for (let z = -154; z <= 182; z += 28) placeLamp(219, z);
+  // Causeway lamps: on the widened concrete shoulders, alternating sides.
+  lampSpots.push([30, 187.5, 0], [43, 204.5, 0], [56, 187.5, 0]);
   const lampCount = lampSpots.length;
   const poleGeo = new THREE.CylinderGeometry(0.12, 0.16, 5.2, 6);
   const headGeo = new THREE.SphereGeometry(0.42, 8, 6);
@@ -458,13 +509,13 @@ export function buildCity(scene) {
     lampCount,
   );
   const m4 = new THREE.Matrix4();
-  lampSpots.forEach(([x, z], i) => {
-    m4.makeTranslation(x, 2.6, z);
+  lampSpots.forEach(([x, z, baseY = 0], i) => {
+    m4.makeTranslation(x, baseY + 2.6, z);
     poles.setMatrixAt(i, m4);
-    m4.makeTranslation(x, 5.35, z);
+    m4.makeTranslation(x, baseY + 5.35, z);
     heads.setMatrixAt(i, m4);
     m4.makeRotationX(-Math.PI / 2);
-    m4.setPosition(x, 0.08, z);
+    m4.setPosition(x, baseY > 0 ? 0.45 : 0.08, z);
     pools.setMatrixAt(i, m4);
   });
   scene.add(poles);
@@ -477,23 +528,32 @@ export function buildCity(scene) {
     scene.add(pl);
   }
 
-  // --- Palm trees: instanced trunks + crowns (dense rows everywhere) ---
+  // --- Palm trees: instanced trunks + crowns (dense rows, all roadside) ---
   const palmSpots = [];
-  for (let z = -168; z <= 168; z += 24) palmSpots.push([206, z]);
-  for (let z = -168; z <= 168; z += 48) palmSpots.push([-48, z]);
-  for (let z = -168; z <= 168; z += 48) palmSpots.push([48, z]);
-  for (let i = 0; i < 8; i++) palmSpots.push([-20 + rng() * 40, 182 + rng() * 26]);
-  for (let i = 0; i < 10; i++) palmSpots.push([226 + rng() * 20, -180 + rng() * 360]);
-  // Both sides of every main avenue, plus park clusters and mansion island.
+  function placePalm(x, z) {
+    const s = findSpot(x, z);
+    if (s) palmSpots.push(s);
+    return s;
+  }
+  // Beach row: sand between boardwalk and drive, mid-block z.
+  for (let z = -156; z <= 180; z += 24) placePalm(220, z);
+  // Bay-side rows: on land at the shoreline, never in the water.
+  for (let z = -144; z <= 168; z += 48) {
+    placePalm(-62, z);
+    placePalm(62, z);
+  }
+  for (let i = 0; i < 8; i++) placePalm(-20 + rng() * 40, 182 + rng() * 26);
+  for (let i = 0; i < 10; i++) placePalm(220 + rng() * 6, -180 + rng() * 360);
+  // Both sides of every main avenue, mid-block so none stands on a street.
   for (const a of [...WORLD.avenuesWest, ...WORLD.avenuesEast]) {
-    for (let z = -168; z <= 168; z += 56) {
-      palmSpots.push([a - 7.5, z]);
-      palmSpots.push([a + 7.5, z + 28]);
+    for (let z = -140; z <= 196; z += 56) {
+      placePalm(a - 7.5, z);
+      placePalm(a + 7.5, z);
     }
   }
-  for (let i = 0; i < 12; i++) palmSpots.push([-176 + rng() * 24, -40 + rng() * 80]);
-  for (let i = 0; i < 8; i++) palmSpots.push([-20 + rng() * 40, 182 + rng() * 26]);
-  for (let i = 0; i < 6; i++) palmSpots.push([228 + rng() * 16, -180 + rng() * 360]);
+  for (let i = 0; i < 12; i++) placePalm(-176 + rng() * 24, -40 + rng() * 80);
+  for (let i = 0; i < 8; i++) placePalm(-20 + rng() * 40, 182 + rng() * 26);
+  for (let i = 0; i < 6; i++) placePalm(246 + rng() * 5, -180 + rng() * 360);
   const palmCount = palmSpots.length;
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.3, 5.4, 6);
   const crownGeo = new THREE.IcosahedronGeometry(2.1, 0);
@@ -513,6 +573,8 @@ export function buildCity(scene) {
   scene.add(crowns);
 
   S.lampCount = lampCount;
+  S.lampSpots = lampSpots;
+  S.palmSpots = palmSpots;
   S.palmCount = palmCount;
   S.buildingCount = buildingCount;
   S.locations = {

@@ -141,7 +141,7 @@ export function respawn() {
   saveGame();
 }
 
-function nearestVehicle(maxD) {
+export function nearestVehicle(maxD) {
   const p = S.player;
   let best = null;
   let bestD = maxD;
@@ -177,32 +177,35 @@ export function exitVehicle() {
   const p = S.player;
   const v = p.vehicle;
   if (!v) return;
-  let ex = v.pos.x + Math.sin(v.heading + Math.PI / 2) * 3;
-  let ez = v.pos.z + Math.cos(v.heading + Math.PI / 2) * 3;
+  // Step out beside the car: try both sides, then front and back — always
+  // onto dry land, never inside the car or in the water.
+  const sx = Math.sin(v.heading + Math.PI / 2);
+  const sz = Math.cos(v.heading + Math.PI / 2);
+  const fx = Math.sin(v.heading);
+  const fz = Math.cos(v.heading);
+  const tries = [
+    [v.pos.x + sx * 3, v.pos.z + sz * 3],
+    [v.pos.x - sx * 3, v.pos.z - sz * 3],
+    [v.pos.x + fx * 3.5, v.pos.z + fz * 3.5],
+    [v.pos.x - fx * 3.5, v.pos.z - fz * 3.5],
+  ];
+  let spot = null;
+  for (const [tx, tz] of tries) {
+    if (isLand(tx, tz)) { spot = [tx, tz]; break; }
+  }
   if (v.kind === 'boat') {
     // Only step out onto dry land — never strand the player mid-bay.
-    const sideA = isLand(ex, ez);
-    const sideB = isLand(
-      v.pos.x - Math.sin(v.heading + Math.PI / 2) * 3,
-      v.pos.z - Math.cos(v.heading + Math.PI / 2) * 3,
-    );
-    if (!sideA && !sideB) {
+    if (!spot) {
       S.hudToast && S.hudToast('Too deep to get out here — dock first!');
       return;
-    }
-    if (!sideA) {
-      ex = v.pos.x - Math.sin(v.heading + Math.PI / 2) * 3;
-      ez = v.pos.z - Math.cos(v.heading + Math.PI / 2) * 3;
     }
   }
   if (v.kind === 'heli' && (v.y || 0) > 3) {
     S.hudToast && S.hudToast('Too high to jump — land first!');
     return;
   }
-  if (isWater(ex, ez) && v.kind === 'car') {
-    ex = v.pos.x;
-    ez = v.pos.z;
-  }
+  if (!spot) { spot = [v.pos.x, v.pos.z]; }
+  const [ex, ez] = spot;
   p.pos.x = ex;
   p.pos.z = ez;
   p.group.position.set(ex, 0, ez);
@@ -289,9 +292,37 @@ function punch() {
   hitEnemies(p.pos, dir, 2.4, 25);
 }
 
+// Golden pulsing ring under the nearest car the player can enter.
+let enterRing = null;
+export function updateEnterRing() {
+  const p = S.player;
+  if (!p || !S.scene) return;
+  if (!enterRing) {
+    enterRing = new THREE.Mesh(
+      new THREE.RingGeometry(2.4, 2.9, 32),
+      new THREE.MeshBasicMaterial({ color: 0xffc93d, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    enterRing.rotation.x = -Math.PI / 2;
+    enterRing.scale.set(1, 1.3, 1);
+    enterRing.visible = false;
+    S.scene.add(enterRing);
+  }
+  if (p.onFoot && S.mode === 'playing') {
+    const v = nearestVehicle(4.5);
+    if (v) {
+      enterRing.position.set(v.pos.x, 0.07, v.pos.z);
+      enterRing.material.opacity = 0.55 + Math.sin(S.time * 5) * 0.3;
+      enterRing.visible = true;
+      return;
+    }
+  }
+  enterRing.visible = false;
+}
+
 export function updatePlayer(dt) {
   const p = S.player;
   if (!p || S.mode !== 'playing') return;
+  updateEnterRing();
   p._shootCooldown = Math.max(0, p._shootCooldown - dt);
   const k = S.keys;
   const input = {

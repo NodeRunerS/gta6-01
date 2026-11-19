@@ -434,10 +434,10 @@ export function spawnHeli(scene) {
 // Parked cars the player can steal, placed on roads and in lots.
 export function spawnParkedCars(scene) {
   const spots = [
-    ['supercar', 140, -48, 1.57], ['sedan', 84, 48, 0], ['muscle', -140, -48, 1.57],
-    ['convertible', 196, -28, 0], ['suv', -84, 112, -1.57], ['pickup', 140, 112, 1.57],
+    ['supercar', 140, -48, 1.57], ['sedan', 84, 48, 0], ['muscle', -140, -28, 1.57],
+    ['convertible', 196, -56, 0], ['suv', -84, 112, -1.57], ['pickup', 140, 112, 1.57],
     ['sedan', 84, -112, 0], ['taxi', -196, 56, 1.57], ['supercar', 196, 112, 0],
-    ['sedan', -112, 140, 0], ['muscle', 112, -84, 1.57], ['convertible', 140, 168, 0],
+    ['sedan', -140, 140, 0], ['muscle', 140, -84, 1.57], ['convertible', 140, 168, 0],
   ];
   const cars = [];
   for (const [type, x, z, h] of spots) {

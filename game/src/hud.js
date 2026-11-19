@@ -3,6 +3,7 @@
 import { S } from './state.js';
 import { fmtMoney, fmtClock, clamp } from './util.js';
 import { MISSIONS } from './missions.js';
+import { nearestVehicle } from './player.js';
 
 let minimap = null;
 let toastTimer = null;
@@ -187,7 +188,7 @@ export function updateHud() {
   } else {
     radio.classList.add('hidden');
   }
-  // Interaction prompt.
+  // Interaction prompt — or, when a car/boat/heli is close, the entry prompt.
   const prompt = $('prompt');
   if (S.mode === 'playing' && !p.vehicle) {
     const it = window.__game && window.__game.nearestInteraction ? window.__game.nearestInteraction() : null;
@@ -195,7 +196,14 @@ export function updateHud() {
       prompt.textContent = it.label;
       prompt.classList.remove('hidden');
     } else {
-      prompt.classList.add('hidden');
+      const v = nearestVehicle(4.5);
+      if (v) {
+        prompt.textContent = v.kind === 'boat' ? 'E — TEKNEYE BİN'
+          : v.kind === 'heli' ? 'E — HELİKOPTERE BİN' : 'E — ARACA BİN';
+        prompt.classList.remove('hidden');
+      } else {
+        prompt.classList.add('hidden');
+      }
     }
   } else {
     prompt.classList.add('hidden');

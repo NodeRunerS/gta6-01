@@ -8,7 +8,7 @@ const EAST = { x0: 56, x1: 224, z0: -196, z1: 196 };
 const BAY = { x0: -56, x1: 56 };
 const BEACH = { x0: 224, x1: 252, z0: -196, z1: 196 };
 const MANSION = { x0: -26, x1: 26, z0: 178, z1: 214 };
-const CAUSEWAY = { x0: 26, x1: 60, z0: 190, z1: 202 };
+const CAUSEWAY = { x0: 26, x1: 60, z0: 186, z1: 206 }; // widened: 2.5u shoulders so lamps stand off the road
 
 export const WORLD = {
   west: WEST,

@@ -263,6 +263,8 @@ window.__game = {
       roadblocks: S.roadblocks.length,
       policeHeli: !!S.policeHeli,
       lampCount: S.lampCount,
+      lampSpots: S.lampSpots || [],
+      palmSpots: S.palmSpots || [],
       buildingCount: S.buildingCount,
       palmCount: S.palmCount,
       clouds: S.clouds ? S.clouds.length : 0,
